@@ -8,64 +8,113 @@ from firewall.risk_engine import RiskEngine
 from firewall.policy_engine import PolicyEngine
 from firewall.authorization import AuthorizationEngine
 from firewall.gemini_analyzer import GeminiAnalyzer
+
+from firewall.behavior_analyzer import BehaviorAnalyzer
+from firewall.threat_intelligence import ThreatIntelligence
+from firewall.security_response import SecurityResponseEngine
+
 from cloud.firestore_logger import FirestoreLogger
+from cloud.agent_trust import AgentTrustEngine
 
 
 class SentinelA2A:
     """
     Main security controller for Sentinel-A2A.
 
-    Security pipeline:
+    Complete security pipeline:
 
         Agent Request
-             ↓
-        Inspector
-             ↓
+             |
+             v
+        A2A Inspection
+             |
+             v
         Threat Detection
-             ↓
+             |
+             v
         Risk Engine
-             ↓
+             |
+             v
         Authorization
-             ↓
+             |
+             v
         Gemini Analysis
-             ↓
-        Policy Engine
-             ↓
+             |
+             v
+        Behavior Analysis
+             |
+             v
+        Agent Trust
+             |
+             v
+        Threat Intelligence
+             |
+             v
+        Security Response
+             |
+        +----+----+
+        |         |
+      ALLOW    BLOCK/
+               QUARANTINE
+             |
+             v
         Firestore Logging
-             ↓
-        ALLOW / QUARANTINE / BLOCK
     """
 
     def __init__(self):
 
-        # Inspect and record incoming agent communication.
+        # -------------------------------------------------
+        # CORE SECURITY COMPONENTS
+        # -------------------------------------------------
+
         self.inspector = AgentInspector()
 
-        # Detect known malicious patterns.
         self.threat_detector = ThreatDetector()
 
-        # Calculate numerical risk score.
         self.risk_engine = RiskEngine()
 
-        # Apply centralized security policies.
         self.policy_engine = PolicyEngine()
 
-        # Check whether the agent can use the requested tool.
         self.authorization = AuthorizationEngine()
 
-        # Analyze the semantic meaning of the request using Gemini.
         self.gemini = GeminiAnalyzer()
 
-        # Read the Google Cloud project ID.
-        project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
 
-        # Enable Firestore logging when Google Cloud is configured.
-        #
-        # This also allows local testing without Firestore.
+        # -------------------------------------------------
+        # ADVANCED SECURITY COMPONENTS
+        # -------------------------------------------------
+
+        # Tracks suspicious behavior across requests.
+        self.behavior_analyzer = BehaviorAnalyzer()
+
+        # Maintains behavioral trust scores for agents.
+        self.trust_engine = AgentTrustEngine()
+
+        # Provides threat severity and recommended actions.
+        self.threat_intelligence = ThreatIntelligence()
+
+        # Produces the final ALLOW / QUARANTINE / BLOCK decision.
+        self.security_response = SecurityResponseEngine()
+
+
+        # -------------------------------------------------
+        # GOOGLE CLOUD / FIRESTORE
+        # -------------------------------------------------
+
+        project_id = os.getenv(
+            "GOOGLE_CLOUD_PROJECT"
+        )
+
         if project_id:
-            self.logger = FirestoreLogger(project_id)
+
+            self.logger = FirestoreLogger(
+                project_id
+            )
+
         else:
+
             self.logger = None
+
 
     def inspect_message(
         self,
@@ -87,13 +136,16 @@ class SentinelA2A:
         - Detected threats
         - Risk score
         - Risk level
-        - Authorization status
+        - Authorization
         - Gemini analysis
+        - Agent trust
+        - Behavioral analysis
+        - Threat intelligence
         - Final decision
         """
 
         # -------------------------------------------------
-        # STEP 1: Inspect communication
+        # STEP 1 — INSPECT COMMUNICATION
         # -------------------------------------------------
 
         security_event = self.inspector.inspect(
@@ -103,124 +155,311 @@ class SentinelA2A:
             tool=tool
         )
 
-        # Generate a unique ID for this security event.
-        security_event["event_id"] = str(uuid.uuid4())
 
-        # Record the exact UTC time of the inspection.
-        security_event["timestamp"] = datetime.now(
-            timezone.utc
-        ).isoformat()
+        # Create unique security event ID.
+
+        security_event["event_id"] = str(
+            uuid.uuid4()
+        )
+
+
+        # Create UTC timestamp.
+
+        security_event["timestamp"] = (
+            datetime.now(
+                timezone.utc
+            ).isoformat()
+        )
+
 
         # -------------------------------------------------
-        # STEP 2: Detect threats
+        # STEP 2 — THREAT DETECTION
         # -------------------------------------------------
 
-        threats = self.threat_detector.detect(message)
+        threats = self.threat_detector.detect(
+            message
+        )
 
         security_event["threats"] = threats
 
+
         # -------------------------------------------------
-        # STEP 3: Calculate risk
+        # STEP 3 — BASE RISK SCORE
         # -------------------------------------------------
 
-        risk_score = self.risk_engine.calculate(threats)
-
-        security_event["risk_score"] = risk_score
-
-        security_event["risk_level"] = (
-            self.risk_engine.get_risk_level(risk_score)
+        base_risk = self.risk_engine.calculate(
+            threats
         )
 
+        security_event["base_risk_score"] = (
+            base_risk
+        )
+
+
         # -------------------------------------------------
-        # STEP 4: Authorization
+        # STEP 4 — AUTHORIZATION
         # -------------------------------------------------
 
         if tool:
 
-            authorized = self.authorization.is_authorized(
-                agent_name=source_agent,
-                tool_name=tool
+            authorized = (
+                self.authorization.is_authorized(
+                    agent_name=source_agent,
+                    tool_name=tool
+                )
             )
 
         else:
 
             authorized = True
 
-        security_event["authorized"] = authorized
+
+        security_event["authorized"] = (
+            authorized
+        )
+
 
         # -------------------------------------------------
-        # STEP 5: Handle unauthorized requests
+        # STEP 5 — GEMINI ANALYSIS
         # -------------------------------------------------
 
-        if not authorized:
+        gemini_analysis = None
 
-            # Unauthorized tool access is immediately blocked.
-            security_event["decision"] = "BLOCK"
+        if authorized:
 
-            # Gemini does not need to analyze an already
-            # unauthorized tool request.
-            security_event["gemini_analysis"] = None
+            try:
 
-        else:
-
-            # -------------------------------------------------
-            # STEP 6: Gemini semantic analysis
-            # -------------------------------------------------
-
-            gemini_analysis = self.gemini.analyze(
-                source_agent=source_agent,
-                target_agent=target_agent,
-                message=message,
-                tool=tool
-            )
-
-            security_event["gemini_analysis"] = gemini_analysis
-
-            # -------------------------------------------------
-            # STEP 7: Final security decision
-            # -------------------------------------------------
-
-            if "BLOCK" in gemini_analysis.upper():
-
-                decision = "BLOCK"
-
-            elif "QUARANTINE" in gemini_analysis.upper():
-
-                decision = "QUARANTINE"
-
-            else:
-
-                decision = self.policy_engine.evaluate(
-                    risk_score=risk_score,
+                gemini_analysis = self.gemini.analyze(
                     source_agent=source_agent,
+                    target_agent=target_agent,
+                    message=message,
                     tool=tool
                 )
 
-            security_event["decision"] = decision
+            except Exception as error:
+
+                # Gemini failure must not crash the firewall.
+
+                gemini_analysis = (
+                    f"Gemini analysis unavailable: {error}"
+                )
+
+
+        security_event["gemini_analysis"] = (
+            gemini_analysis
+        )
+
 
         # -------------------------------------------------
-        # STEP 8: Store event in Firestore
+        # STEP 6 — AGENT BEHAVIOR
+        # -------------------------------------------------
+
+        behavior_result = (
+            self.behavior_analyzer.analyze(
+                source_agent
+            )
+        )
+
+        behavior_score = behavior_result.get(
+            "anomaly_score",
+            0
+        )
+
+
+        security_event["behavior_anomaly_score"] = (
+            behavior_score
+        )
+
+        security_event["behavior_anomaly"] = (
+            behavior_result.get(
+                "anomaly",
+                False
+            )
+        )
+
+        security_event["behavior_reasons"] = (
+            behavior_result.get(
+                "reasons",
+                []
+            )
+        )
+
+
+        # -------------------------------------------------
+        # STEP 7 — AGENT TRUST
+        # -------------------------------------------------
+
+        trust_result = (
+            self.trust_engine.get_agent_status(
+                source_agent
+            )
+        )
+
+        trust_score = trust_result.get(
+            "trust_score",
+            100
+        )
+
+        trust_level = trust_result.get(
+            "trust_level",
+            "TRUSTED"
+        )
+
+
+        security_event["agent_trust_score"] = (
+            trust_score
+        )
+
+        security_event["agent_trust_level"] = (
+            trust_level
+        )
+
+
+        # -------------------------------------------------
+        # STEP 8 — THREAT INTELLIGENCE
+        # -------------------------------------------------
+
+        threat_summary = (
+            self.threat_intelligence.build_summary(
+                threats
+            )
+        )
+
+
+        security_event["threat_intelligence"] = (
+            threat_summary
+        )
+
+        threat_severity = (
+            threat_summary[
+                "highest_severity"
+            ]
+        )
+
+        threat_action = (
+            threat_summary[
+                "recommended_action"
+            ]
+        )
+
+
+        # -------------------------------------------------
+        # STEP 9 — GEMINI DECISION SIGNAL
+        # -------------------------------------------------
+
+        # Gemini may provide an additional security signal.
+
+        gemini_text = str(
+            gemini_analysis or ""
+        ).upper()
+
+
+        if "BLOCK" in gemini_text:
+
+            threat_action = "BLOCK"
+
+        elif (
+            "QUARANTINE" in gemini_text
+            and threat_action != "BLOCK"
+        ):
+
+            threat_action = "QUARANTINE"
+
+
+        # -------------------------------------------------
+        # STEP 10 — FINAL SECURITY RESPONSE
+        # -------------------------------------------------
+
+        final_result = (
+            self.security_response.evaluate(
+                base_risk=base_risk,
+                behavior_score=behavior_score,
+                trust_score=trust_score,
+                threat_severity=threat_severity,
+                authorized=authorized,
+                threat_action=threat_action
+            )
+        )
+
+
+        security_event["risk_score"] = (
+            final_result["risk_score"]
+        )
+
+        security_event["risk_level"] = (
+            final_result["risk_level"]
+        )
+
+        security_event["decision"] = (
+            final_result["decision"]
+        )
+
+        security_event["recommended_action"] = (
+            threat_action
+        )
+
+
+        # -------------------------------------------------
+        # STEP 11 — RECORD BEHAVIOR
+        # -------------------------------------------------
+
+        self.behavior_analyzer.record_request(
+            agent_name=source_agent,
+            tool=tool,
+            risk_score=final_result[
+                "risk_score"
+            ],
+            decision=final_result[
+                "decision"
+            ]
+        )
+
+
+        # -------------------------------------------------
+        # STEP 12 — UPDATE AGENT TRUST
+        # -------------------------------------------------
+
+        self.trust_engine.record_event(
+            agent_name=source_agent,
+            decision=final_result[
+                "decision"
+            ],
+            risk_score=final_result[
+                "risk_score"
+            ]
+        )
+
+
+        # -------------------------------------------------
+        # STEP 13 — FIRESTORE LOGGING
         # -------------------------------------------------
 
         if self.logger:
 
             try:
 
-                document_id = self.logger.log_event(
-                    security_event
+                document_id = (
+                    self.logger.log_event(
+                        security_event
+                    )
                 )
 
-                security_event["firestore_document_id"] = (
-                    document_id
-                )
+                security_event[
+                    "firestore_document_id"
+                ] = document_id
 
             except Exception as error:
 
-                # Logging failure should never crash the firewall.
-                security_event["logging_error"] = str(error)
+                # Logging failure should never
+                # bring down the security firewall.
+
+                security_event[
+                    "logging_error"
+                ] = str(error)
+
 
         # -------------------------------------------------
-        # STEP 9: Return security report
+        # STEP 14 — RETURN SECURITY REPORT
         # -------------------------------------------------
 
-        return security_event 
+        return security_event
