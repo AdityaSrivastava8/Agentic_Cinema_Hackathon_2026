@@ -3,24 +3,26 @@ from firewall.threat_detector import ThreatDetector
 from firewall.risk_engine import RiskEngine
 from firewall.policy_engine import PolicyEngine
 from firewall.authorization import AuthorizationEngine
+from firewall.gemini_analyzer import GeminiAnalyzer
 
 
 class SentinelA2A:
     """
     Main security controller for Sentinel-A2A.
 
-    Every agent-to-agent or agent-to-tool request
-    passes through this security pipeline:
+    Security pipeline:
 
         Agent Request
              ↓
         Inspector
              ↓
-        Threat Detector
+        Rule-Based Threat Detection
              ↓
         Risk Engine
              ↓
-        Authorization Engine
+        Authorization
+             ↓
+        Gemini Semantic Analysis
              ↓
         Policy Engine
              ↓
@@ -29,21 +31,23 @@ class SentinelA2A:
 
     def __init__(self):
 
-        # Capture and record incoming agent communication.
+        # Capture information about agent communication.
         self.inspector = AgentInspector()
 
-        # Detect suspicious or malicious instructions.
+        # Detect known threats using deterministic rules.
         self.threat_detector = ThreatDetector()
 
-        # Convert detected threats into a 0–100 risk score.
+        # Calculate the initial numerical risk score.
         self.risk_engine = RiskEngine()
 
         # Apply the centralized security policies.
         self.policy_engine = PolicyEngine()
 
-        # Check whether an agent is authorized to
-        # access the requested tool.
+        # Check agent/tool permissions.
         self.authorization = AuthorizationEngine()
+
+        # Use Gemini for semantic security analysis.
+        self.gemini = GeminiAnalyzer()
 
     def inspect_message(
         self,
@@ -53,20 +57,15 @@ class SentinelA2A:
         tool=None
     ):
         """
-        Perform a complete security inspection.
+        Perform complete Sentinel-A2A analysis.
 
-        Returns a security report containing:
-        - Source and target agents
-        - Requested tool
-        - Detected threats
-        - Risk score
-        - Risk level
-        - Authorization result
-        - Final decision
+        The request is analyzed using both:
+        - deterministic security rules
+        - Gemini semantic reasoning
         """
 
         # -------------------------------------------------
-        # STEP 1: Record the communication
+        # STEP 1: Inspect communication
         # -------------------------------------------------
 
         security_event = self.inspector.inspect(
@@ -77,7 +76,7 @@ class SentinelA2A:
         )
 
         # -------------------------------------------------
-        # STEP 2: Detect threats
+        # STEP 2: Rule-based threat detection
         # -------------------------------------------------
 
         threats = self.threat_detector.detect(message)
@@ -85,7 +84,7 @@ class SentinelA2A:
         security_event["threats"] = threats
 
         # -------------------------------------------------
-        # STEP 3: Calculate risk
+        # STEP 3: Calculate initial risk
         # -------------------------------------------------
 
         risk_score = self.risk_engine.calculate(threats)
@@ -97,10 +96,9 @@ class SentinelA2A:
         )
 
         # -------------------------------------------------
-        # STEP 4: Check agent authorization
+        # STEP 4: Authorization check
         # -------------------------------------------------
 
-        # If no tool is requested, authorization is not needed.
         if tool:
 
             authorized = self.authorization.is_authorized(
@@ -112,31 +110,58 @@ class SentinelA2A:
 
             authorized = True
 
-        # Store the authorization result in the security report.
         security_event["authorized"] = authorized
 
+        # Unauthorized tools are immediately blocked.
+        if not authorized:
+
+            security_event["decision"] = "BLOCK"
+            security_event["gemini_analysis"] = None
+
+            return security_event
+
         # -------------------------------------------------
-        # STEP 5: Enforce the security policy
+        # STEP 5: Gemini semantic analysis
         # -------------------------------------------------
 
-        # Immediately block unauthorized tool access.
-        if not authorized:
+        gemini_analysis = self.gemini.analyze(
+            source_agent=source_agent,
+            target_agent=target_agent,
+            message=message,
+            tool=tool
+        )
+
+        # Store Gemini's analysis for the dashboard
+        # and future logging.
+        security_event["gemini_analysis"] = gemini_analysis
+
+        # -------------------------------------------------
+        # STEP 6: Combine security signals
+        # -------------------------------------------------
+
+        # Gemini's recommendation is used as an additional
+        # security signal rather than blindly trusting it.
+        if "BLOCK" in gemini_analysis.upper():
 
             decision = "BLOCK"
 
+        elif "QUARANTINE" in gemini_analysis.upper():
+
+            decision = "QUARANTINE"
+
         else:
 
+            # Fall back to our deterministic policy engine.
             decision = self.policy_engine.evaluate(
                 risk_score=risk_score,
                 source_agent=source_agent,
                 tool=tool
             )
 
-        # Store the final decision.
-        security_event["decision"] = decision
+        # -------------------------------------------------
+        # STEP 7: Store final decision
+        # -------------------------------------------------
 
-        # -------------------------------------------------
-        # STEP 6: Return security report
-        # -------------------------------------------------
+        security_event["decision"] = decision
 
         return security_event 
