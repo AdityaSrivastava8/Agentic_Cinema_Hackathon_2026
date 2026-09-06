@@ -20,13 +20,13 @@ class AgentRouter:
               ↓
            MCP Tool
 
-    Sentinel-A2A must approve the request before
-    the MCP tool is allowed to execute.
+    Sentinel-A2A controls whether the request is allowed
+    before the target agent or MCP tool can execute it.
     """
 
     def __init__(self):
 
-        # Create the participating AI agents.
+        # Create the two AI agents.
         self.shopping_agent = ShoppingAgent()
         self.payment_agent = PaymentAgent()
 
@@ -45,23 +45,17 @@ class AgentRouter:
         """
         Send a request from ShoppingAgent to PaymentAgent.
 
-        The request is inspected by Sentinel-A2A first.
-
-        If approved:
-            PaymentAgent receives the request.
-            The requested MCP tool can then execute.
-
-        If blocked:
-            The request stops immediately.
+        The request must pass Sentinel-A2A before
+        reaching the PaymentAgent or MCP tool.
         """
 
-        # Use an empty dictionary if no MCP arguments
-        # were provided.
+        # Use an empty dictionary when no tool arguments
+        # are provided.
         if tool_arguments is None:
             tool_arguments = {}
 
         # -------------------------------------------------
-        # STEP 1: ShoppingAgent creates the request
+        # STEP 1: Create the agent request
         # -------------------------------------------------
 
         request = self.shopping_agent.create_request(
@@ -70,23 +64,26 @@ class AgentRouter:
         )
 
         # -------------------------------------------------
-        # STEP 2: Sentinel-A2A inspects the request
+        # STEP 2: Send request through Sentinel-A2A
         # -------------------------------------------------
 
         security_result = self.sentinel.inspect_message(
             source_agent=request["source_agent"],
             target_agent=self.payment_agent.name,
             message=request["message"],
-            tool=request["tool"],
-            allowed_tools=request["allowed_tools"]
+            tool=request["tool"]
         )
 
         # -------------------------------------------------
-        # STEP 3: Stop blocked/quarantined requests
+        # STEP 3: Check Sentinel-A2A decision
         # -------------------------------------------------
 
         if security_result["decision"] != "ALLOW":
 
+            # Blocked or quarantined requests stop here.
+            #
+            # The PaymentAgent and MCP tool never receive
+            # the request.
             return {
                 "security": security_result,
                 "payment": None,
@@ -94,7 +91,7 @@ class AgentRouter:
             }
 
         # -------------------------------------------------
-        # STEP 4: Approved request reaches PaymentAgent
+        # STEP 4: Request approved
         # -------------------------------------------------
 
         payment_result = self.payment_agent.process_payment(
@@ -102,7 +99,7 @@ class AgentRouter:
         )
 
         # -------------------------------------------------
-        # STEP 5: Approved tool request reaches MCP
+        # STEP 5: Execute MCP tool
         # -------------------------------------------------
 
         mcp_result = None
@@ -122,4 +119,4 @@ class AgentRouter:
             "security": security_result,
             "payment": payment_result,
             "mcp_result": mcp_result
-        }
+        } 
