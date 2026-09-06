@@ -1,51 +1,78 @@
 from agents.shopping_agent import ShoppingAgent
 from agents.payment_agent import PaymentAgent
 from firewall.sentinel import SentinelA2A
+from mcp.mcp_gateway import MCPGateway
 
 
 class AgentRouter:
     """
-    Routes messages between AI agents through Sentinel-A2A.
-
-    No agent communicates directly with another agent.
+    Routes communication between AI agents through Sentinel-A2A.
 
     Communication flow:
 
         ShoppingAgent
               ↓
-        AgentRouter
-              ↓
         Sentinel-A2A
               ↓
         PaymentAgent
+              ↓
+          MCPGateway
+              ↓
+           MCP Tool
 
-    This makes Sentinel-A2A the security checkpoint
-    for all agent-to-agent communication.
+    Sentinel-A2A must approve the request before
+    the MCP tool is allowed to execute.
     """
 
-    def _init_(self):
-        # Create the agents that participate in communication.
+    def __init__(self):
+
+        # Create the participating AI agents.
         self.shopping_agent = ShoppingAgent()
         self.payment_agent = PaymentAgent()
 
         # Create the Sentinel-A2A security layer.
         self.sentinel = SentinelA2A()
 
-    def send_to_payment_agent(self, message, tool=None):
-        """
-        Send a message from ShoppingAgent to PaymentAgent.
+        # Create the MCP gateway.
+        self.mcp_gateway = MCPGateway()
 
-        The message is inspected by Sentinel-A2A before
-        the PaymentAgent receives it.
+    def send_to_payment_agent(
+        self,
+        message,
+        tool=None,
+        tool_arguments=None
+    ):
+        """
+        Send a request from ShoppingAgent to PaymentAgent.
+
+        The request is inspected by Sentinel-A2A first.
+
+        If approved:
+            PaymentAgent receives the request.
+            The requested MCP tool can then execute.
+
+        If blocked:
+            The request stops immediately.
         """
 
-        # ShoppingAgent creates the outgoing request.
+        # Use an empty dictionary if no MCP arguments
+        # were provided.
+        if tool_arguments is None:
+            tool_arguments = {}
+
+        # -------------------------------------------------
+        # STEP 1: ShoppingAgent creates the request
+        # -------------------------------------------------
+
         request = self.shopping_agent.create_request(
             message=message,
             tool=tool
         )
 
-        # Sentinel-A2A inspects the communication.
+        # -------------------------------------------------
+        # STEP 2: Sentinel-A2A inspects the request
+        # -------------------------------------------------
+
         security_result = self.sentinel.inspect_message(
             source_agent=request["source_agent"],
             target_agent=self.payment_agent.name,
@@ -54,22 +81,45 @@ class AgentRouter:
             allowed_tools=request["allowed_tools"]
         )
 
-        # Only allow the PaymentAgent to process the request
-        # if Sentinel-A2A approves it.
-        if security_result["decision"] == "ALLOW":
+        # -------------------------------------------------
+        # STEP 3: Stop blocked/quarantined requests
+        # -------------------------------------------------
 
-            payment_result = self.payment_agent.process_payment(
-                message
-            )
+        if security_result["decision"] != "ALLOW":
 
             return {
                 "security": security_result,
-                "payment": payment_result
+                "payment": None,
+                "mcp_result": None
             }
 
-        # If Sentinel-A2A blocks or quarantines the request,
-        # the PaymentAgent never receives it.
+        # -------------------------------------------------
+        # STEP 4: Approved request reaches PaymentAgent
+        # -------------------------------------------------
+
+        payment_result = self.payment_agent.process_payment(
+            message
+        )
+
+        # -------------------------------------------------
+        # STEP 5: Approved tool request reaches MCP
+        # -------------------------------------------------
+
+        mcp_result = None
+
+        if tool:
+
+            mcp_result = self.mcp_gateway.execute(
+                tool,
+                **tool_arguments
+            )
+
+        # -------------------------------------------------
+        # STEP 6: Return complete result
+        # -------------------------------------------------
+
         return {
             "security": security_result,
-            "payment": None
-        } 
+            "payment": payment_result,
+            "mcp_result": mcp_result
+        }
