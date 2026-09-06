@@ -1,0 +1,32 @@
+{
+    "agents": {
+        "ShoppingAgent": {
+            "allowed_tools": [
+                "search_product",
+                "create_payment"
+            ],
+            "blocked_tools": [
+                "get_customer_financial_data",
+                "refund_payment",
+                "admin_database"
+            ]
+        },
+
+        "PaymentAgent": {
+            "allowed_tools": [
+                "create_payment",
+                "get_payment_status"
+            ],
+            "blocked_tools": [
+                "admin_database",
+                "get_customer_financial_data"
+            ]
+        }
+    },
+
+    "risk_policy": {
+        "low_risk_max": 29,
+        "medium_risk_max": 69,
+        "high_risk_min": 70
+    }
+}
