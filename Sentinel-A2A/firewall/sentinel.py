@@ -1,4 +1,6 @@
 import os
+import uuid
+from datetime import datetime, timezone
 
 from firewall.inspector import AgentInspector
 from firewall.threat_detector import ThreatDetector
@@ -13,7 +15,7 @@ class SentinelA2A:
     """
     Main security controller for Sentinel-A2A.
 
-    Every request passes through:
+    Security pipeline:
 
         Agent Request
              ↓
@@ -36,37 +38,30 @@ class SentinelA2A:
 
     def __init__(self):
 
-        # Basic communication inspection.
+        # Inspect and record incoming agent communication.
         self.inspector = AgentInspector()
 
-        # Rule-based threat detection.
+        # Detect known malicious patterns.
         self.threat_detector = ThreatDetector()
 
-        # Numerical risk calculation.
+        # Calculate numerical risk score.
         self.risk_engine = RiskEngine()
 
-        # Centralized security policy.
+        # Apply centralized security policies.
         self.policy_engine = PolicyEngine()
 
-        # Agent/tool authorization.
+        # Check whether the agent can use the requested tool.
         self.authorization = AuthorizationEngine()
 
-        # Gemini semantic security analysis.
+        # Analyze the semantic meaning of the request using Gemini.
         self.gemini = GeminiAnalyzer()
 
-        # -------------------------------------------------
-        # Google Cloud Firestore
-        # -------------------------------------------------
-
-        # Read the Google Cloud project ID from the
-        # environment.
+        # Read the Google Cloud project ID.
         project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
 
-        # Create the Firestore logger only when a
-        # Google Cloud project is configured.
+        # Enable Firestore logging when Google Cloud is configured.
         #
-        # This allows the firewall to still run locally
-        # without Firestore.
+        # This also allows local testing without Firestore.
         if project_id:
             self.logger = FirestoreLogger(project_id)
         else:
@@ -80,7 +75,21 @@ class SentinelA2A:
         tool=None
     ):
         """
-        Inspect one agent-to-agent/tool request.
+        Perform complete Sentinel-A2A security inspection.
+
+        Returns a security event containing:
+
+        - Event ID
+        - Timestamp
+        - Source agent
+        - Target agent
+        - Requested tool
+        - Detected threats
+        - Risk score
+        - Risk level
+        - Authorization status
+        - Gemini analysis
+        - Final decision
         """
 
         # -------------------------------------------------
@@ -93,6 +102,14 @@ class SentinelA2A:
             message=message,
             tool=tool
         )
+
+        # Generate a unique ID for this security event.
+        security_event["event_id"] = str(uuid.uuid4())
+
+        # Record the exact UTC time of the inspection.
+        security_event["timestamp"] = datetime.now(
+            timezone.utc
+        ).isoformat()
 
         # -------------------------------------------------
         # STEP 2: Detect threats
@@ -131,17 +148,24 @@ class SentinelA2A:
 
         security_event["authorized"] = authorized
 
-        # Unauthorized tool access is immediately blocked.
+        # -------------------------------------------------
+        # STEP 5: Handle unauthorized requests
+        # -------------------------------------------------
+
         if not authorized:
 
+            # Unauthorized tool access is immediately blocked.
             security_event["decision"] = "BLOCK"
+
+            # Gemini does not need to analyze an already
+            # unauthorized tool request.
             security_event["gemini_analysis"] = None
 
         else:
 
-            # ---------------------------------------------
-            # STEP 5: Gemini semantic analysis
-            # ---------------------------------------------
+            # -------------------------------------------------
+            # STEP 6: Gemini semantic analysis
+            # -------------------------------------------------
 
             gemini_analysis = self.gemini.analyze(
                 source_agent=source_agent,
@@ -152,9 +176,9 @@ class SentinelA2A:
 
             security_event["gemini_analysis"] = gemini_analysis
 
-            # ---------------------------------------------
-            # STEP 6: Final security decision
-            # ---------------------------------------------
+            # -------------------------------------------------
+            # STEP 7: Final security decision
+            # -------------------------------------------------
 
             if "BLOCK" in gemini_analysis.upper():
 
@@ -175,7 +199,7 @@ class SentinelA2A:
             security_event["decision"] = decision
 
         # -------------------------------------------------
-        # STEP 7: Store security event in Firestore
+        # STEP 8: Store event in Firestore
         # -------------------------------------------------
 
         if self.logger:
@@ -192,8 +216,11 @@ class SentinelA2A:
 
             except Exception as error:
 
-                # Logging failure should not crash the
-                # security firewall.
+                # Logging failure should never crash the firewall.
                 security_event["logging_error"] = str(error)
 
-        return security_event
+        # -------------------------------------------------
+        # STEP 9: Return security report
+        # -------------------------------------------------
+
+        return security_event 
