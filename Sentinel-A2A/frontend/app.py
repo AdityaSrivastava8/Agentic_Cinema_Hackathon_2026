@@ -15,12 +15,9 @@ st.set_page_config(
 
 
 # ---------------------------------------------------------
-# INITIALIZE SENTINEL-A2A
+# INITIALIZE SYSTEM
 # ---------------------------------------------------------
 
-# Create the communication router.
-# The router connects ShoppingAgent and PaymentAgent
-# through the Sentinel-A2A security layer.
 router = AgentRouter()
 
 
@@ -32,26 +29,33 @@ st.title("🛡️ Sentinel-A2A")
 st.subheader("Runtime Security Firewall for AI Agents")
 
 st.write(
-    "Monitor and secure communication between AI agents "
-    "before messages reach another agent or tool."
+    "Sentinel-A2A inspects communication between AI agents "
+    "and protects MCP tools from unauthorized or malicious requests."
 )
 
 
 # ---------------------------------------------------------
-# MESSAGE INPUT
+# AGENT COMMUNICATION
 # ---------------------------------------------------------
 
 st.divider()
 
-st.subheader("🔄 Agent-to-Agent Communication")
+st.subheader("🤖 Agent-to-Agent Request")
 
 message = st.text_area(
-    "Message from ShoppingAgent to PaymentAgent",
-    placeholder="Example: Process the payment for the selected laptop."
+    "Message from ShoppingAgent → PaymentAgent",
+    placeholder=(
+        "Example: Process the payment for the selected laptop."
+    )
 )
 
+
+# ---------------------------------------------------------
+# TOOL SELECTION
+# ---------------------------------------------------------
+
 tool = st.selectbox(
-    "Requested Tool",
+    "MCP Tool Requested",
     [
         "create_payment",
         "get_payment_status",
@@ -61,29 +65,92 @@ tool = st.selectbox(
 
 
 # ---------------------------------------------------------
-# INSPECT MESSAGE
+# TOOL ARGUMENTS
 # ---------------------------------------------------------
 
-if st.button("🛡️ Inspect with Sentinel-A2A"):
+st.subheader("🔧 Tool Parameters")
+
+if tool == "create_payment":
+
+    amount = st.number_input(
+        "Payment Amount (₹)",
+        min_value=1,
+        value=2000
+    )
+
+    merchant = st.text_input(
+        "Merchant",
+        value="Example Store"
+    )
+
+    tool_arguments = {
+        "amount": amount,
+        "merchant": merchant
+    }
+
+elif tool == "get_payment_status":
+
+    payment_id = st.text_input(
+        "Payment ID",
+        value="PAY-1001"
+    )
+
+    tool_arguments = {
+        "payment_id": payment_id
+    }
+
+else:
+
+    customer_id = st.text_input(
+        "Customer ID",
+        value="CUSTOMER-001"
+    )
+
+    tool_arguments = {
+        "customer_id": customer_id
+    }
+
+
+# ---------------------------------------------------------
+# INSPECT REQUEST
+# ---------------------------------------------------------
+
+if st.button("🛡️ Inspect Request"):
 
     if not message.strip():
-        st.warning("Please enter a message first.")
+
+        st.warning("Please enter a message.")
 
     else:
-        # Send the message through the complete
-        # Sentinel-A2A security pipeline.
+
+        # Send the request through:
+        #
+        # ShoppingAgent
+        #       ↓
+        # Sentinel-A2A
+        #       ↓
+        # PaymentAgent
+        #       ↓
+        # MCP Gateway
+        #       ↓
+        # MCP Tool
+
         result = router.send_to_payment_agent(
             message=message,
-            tool=tool
+            tool=tool,
+            tool_arguments=tool_arguments
         )
 
         security = result["security"]
+
 
         # -------------------------------------------------
         # SECURITY RESULT
         # -------------------------------------------------
 
-        st.subheader("Security Analysis")
+        st.divider()
+
+        st.subheader("🛡️ Sentinel-A2A Security Analysis")
 
         col1, col2, col3 = st.columns(3)
 
@@ -105,59 +172,84 @@ if st.button("🛡️ Inspect with Sentinel-A2A"):
                 security["decision"]
             )
 
+
         # -------------------------------------------------
-        # THREATS
+        # THREAT INFORMATION
         # -------------------------------------------------
 
-        st.subheader("🚨 Detected Threats")
+        st.subheader("🚨 Threat Detection")
 
         if security["threats"]:
+
             for threat in security["threats"]:
                 st.error(f"⚠️ {threat}")
+
         else:
-            st.success("No known threats detected.")
+
+            st.success("✅ No known threats detected.")
+
 
         # -------------------------------------------------
-        # COMMUNICATION DETAILS
+        # AGENT INFORMATION
         # -------------------------------------------------
 
-        st.subheader("📡 Communication Details")
+        st.subheader("📡 Agent Communication")
 
-        st.write(
-            f'*Source Agent:* {security["source_agent"]}'
-        )
+        col1, col2 = st.columns(2)
 
-        st.write(
-            f'*Target Agent:* {security["target_agent"]}'
-        )
+        with col1:
+            st.write(
+                f'**Source:** {security["source_agent"]}'
+            )
 
-        st.write(
-            f'*Requested Tool:* {security["tool"]}'
-        )
+        with col2:
+            st.write(
+                f'**Target:** {security["target_agent"]}'
+            )
+
 
         # -------------------------------------------------
-        # FINAL ACTION
+        # FINAL DECISION
         # -------------------------------------------------
 
         if security["decision"] == "ALLOW":
 
             st.success(
-                "🟢 Message approved by Sentinel-A2A. "
-                "PaymentAgent processed the request."
+                "🟢 APPROVED — Sentinel-A2A allowed "
+                "the request to proceed."
             )
 
-            st.json(result["payment"])
+            # Show PaymentAgent response.
+            if result["payment"]:
+
+                st.subheader("💳 Payment Agent")
+
+                st.json(result["payment"])
+
+
+            # Show MCP tool response.
+            if result["mcp_result"]:
+
+                st.subheader("🔧 MCP Tool Result")
+
+                st.json(result["mcp_result"])
+
 
         elif security["decision"] == "QUARANTINE":
 
             st.warning(
-                "🟡 Message quarantined for additional "
-                "security verification."
+                "🟡 QUARANTINED — The request requires "
+                "additional verification."
             )
+
 
         else:
 
             st.error(
-                "🔴 Message BLOCKED by Sentinel-A2A. "
-                "The receiving agent did not process it."
+                "🔴 BLOCKED — Sentinel-A2A prevented the "
+                "request from reaching the target/tool."
+            )
+
+            st.info(
+                "The MCP tool was NOT executed."
             ) 
