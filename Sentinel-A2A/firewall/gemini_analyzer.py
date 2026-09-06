@@ -1,32 +1,36 @@
 from google import genai
-from google.genai.types import HttpOptions
-
-from config.gemini_config import GeminiConfig
+import os
 
 
 class GeminiAnalyzer:
     """
     Gemini-powered semantic security analyzer.
 
-    Gemini runs through Google Cloud Vertex AI.
+    Uses the Gemini API through the google-genai SDK.
+    Authentication is handled using GEMINI_API_KEY.
     """
 
     def __init__(self):
 
-        # Validate Google Cloud configuration.
-        GeminiConfig.validate()
+        # Read the Gemini API key from the environment.
+        self.api_key = os.getenv("GEMINI_API_KEY")
 
-        # Create a Vertex AI Gemini client.
-        self.client = genai.Client(
-            vertexai=True,
-            project=GeminiConfig.PROJECT_ID,
-            location=GeminiConfig.LOCATION,
-            http_options=HttpOptions(
-                api_version="v1"
+        # Stop with a clear message if the key is missing.
+        if not self.api_key:
+            raise ValueError(
+                "GEMINI_API_KEY is not configured."
             )
+
+        # Create the Gemini API client.
+        self.client = genai.Client(
+            api_key=self.api_key
         )
 
-        self.model = GeminiConfig.MODEL
+        # Gemini model used for security analysis.
+        self.model = os.getenv(
+            "GEMINI_MODEL",
+            "gemini-2.5-flash"
+        )
 
     def analyze(
         self,
@@ -69,14 +73,15 @@ MESSAGE:
 Return ONLY:
 
 THREAT_LEVEL: LOW, MEDIUM, or HIGH
-THREAT: <short description>
+THREAT: <short description> 
 REASON: <short explanation>
 RECOMMENDATION: ALLOW, QUARANTINE, or BLOCK
 """
 
+        # Send the security request to Gemini.
         response = self.client.models.generate_content(
             model=self.model,
             contents=prompt
         )
 
-        return response.text
+        return response.text 
