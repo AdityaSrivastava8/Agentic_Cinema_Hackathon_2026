@@ -1,96 +1,89 @@
+import json
+import os
+
+
 class PolicyEngine:
     """
-    Decides what Sentinel-A2A should do with a message
-    after security analysis.
+    Sentinel-A2A policy enforcement layer.
 
-    Possible decisions:
+    This component loads agent permissions from
+    config/policies.json and decides whether a request
+    should be:
 
-        ALLOW       → Message is safe to proceed.
-        QUARANTINE  → Message needs additional verification.
-        BLOCK       → Message is considered unsafe.
-
-    The policy engine combines:
-    - Risk score
-    - Detected threats
-    - Agent permissions
+        ALLOW
+        QUARANTINE
+        BLOCK
     """
 
-    def _init_(self):
+    def __init__(self):
+        # Find the project root directory.
+        project_root = os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__))
+        )
 
-        # Define the minimum risk score at which
-        # a message should be quarantined.
-        self.quarantine_threshold = 30
+        # Build the path to the central security policy.
+        policy_path = os.path.join(
+            project_root,
+            "config",
+            "policies.json"
+        )
 
-        # Define the minimum risk score at which
-        # a message should be blocked.
-        self.block_threshold = 70
+        # Load the security policies.
+        with open(policy_path, "r", encoding="utf-8") as file:
+            self.policies = json.load(file)
 
-    def evaluate(self, risk_score, threats=None, tool=None, allowed_tools=None):
+        # Read risk thresholds from the policy file.
+        risk_policy = self.policies["risk_policy"]
+
+        self.quarantine_threshold = risk_policy["low_risk_max"] + 1
+        self.block_threshold = risk_policy["high_risk_min"]
+
+    def evaluate(
+        self,
+        risk_score,
+        source_agent,
+        tool=None
+    ):
         """
-        Make the final security decision.
+        Evaluate an agent request against the security policy.
 
         Parameters:
             risk_score:
-                Risk score calculated by RiskEngine.
+                Risk score from RiskEngine.
 
-            threats:
-                Threats detected in the message.
+            source_agent:
+                Agent requesting the action.
 
             tool:
-                MCP/API tool requested by the agent.
-
-            allowed_tools:
-                Tools that the source agent is authorized to use.
+                MCP/API tool being requested.
 
         Returns:
             ALLOW, QUARANTINE, or BLOCK.
         """
 
-        # Make sure threats is always a list.
-        if threats is None:
-            threats = []
+        # Get the security policy for this agent.
+        agent_policy = self.policies["agents"].get(source_agent)
 
-        # Make sure allowed_tools is always a list.
-        if allowed_tools is None:
-            allowed_tools = []
-
-        # --------------------------------------------------
-        # STEP 1: Check tool permissions
-        # --------------------------------------------------
-        #
-        # If an agent requests a tool that it does not
-        # have permission to use, block the request.
-        if tool and tool not in allowed_tools:
+        # If the agent does not have a registered policy,
+        # do not trust it by default.
+        if agent_policy is None:
             return "BLOCK"
 
-        # --------------------------------------------------
-        # STEP 2: Check for critical threats
-        # --------------------------------------------------
-        #
-        # Some threats are serious enough that we should
-        # block the request regardless of the numerical
-        # risk score.
-        critical_threats = [
-            "Data Exfiltration",
-            "Privilege Escalation",
-            "Unauthorized Tool Access"
-        ]
-
-        if any(threat in critical_threats for threat in threats):
+        # Check whether the requested tool is explicitly blocked.
+        if tool in agent_policy["blocked_tools"]:
             return "BLOCK"
 
-        # --------------------------------------------------
-        # STEP 3: Evaluate the overall risk score
-        # --------------------------------------------------
+        # Check whether the tool is authorized.
+        if tool and tool not in agent_policy["allowed_tools"]:
+            return "BLOCK"
 
+        # High-risk requests are blocked.
         if risk_score >= self.block_threshold:
             return "BLOCK"
 
-        elif risk_score >= self.quarantine_threshold:
+        # Medium-risk requests require additional verification.
+        if risk_score >= self.quarantine_threshold:
             return "QUARANTINE"
 
-        # --------------------------------------------------
-        # STEP 4: Everything else is allowed
-        # --------------------------------------------------
-
+        # Everything else is allowed.
         return "ALLOW"
