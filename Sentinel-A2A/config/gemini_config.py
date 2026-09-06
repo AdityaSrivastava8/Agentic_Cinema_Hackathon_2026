@@ -3,35 +3,35 @@ import os
 
 class GeminiConfig:
     """
-    Central configuration for Sentinel-A2A's Gemini
-    security intelligence layer.
-
-    Keeps model and API configuration in one place.
+    Configuration for Sentinel-A2A's Gemini security engine
+    running through Google Cloud Vertex AI.
     """
 
-    # Gemini API key is read from the environment.
-    # Never hard-code the actual key here.
-    API_KEY = os.getenv("GEMINI_API_KEY")
+    # Google Cloud project ID.
+    PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
+
+    # Vertex AI location.
+    LOCATION = os.getenv(
+        "GOOGLE_CLOUD_LOCATION",
+        "global"
+    )
 
     # Gemini model used for semantic threat analysis.
     MODEL = "gemini-2.5-flash"
 
-    # Temperature controls how deterministic Gemini's
-    # security analysis should be.
+    # Keep security analysis deterministic.
     TEMPERATURE = 0.0
-
-    # Maximum output size for the security analysis.
-    MAX_OUTPUT_TOKENS = 500
 
     @classmethod
     def validate(cls):
         """
-        Verify that the Gemini API key is available.
+        Make sure the required Google Cloud configuration
+        is available.
         """
 
-        if not cls.API_KEY:
+        if not cls.PROJECT_ID:
             raise ValueError(
-                "GEMINI_API_KEY is not configured."
+                "GOOGLE_CLOUD_PROJECT is not configured."
             )
 
-        return True
+        return True 
