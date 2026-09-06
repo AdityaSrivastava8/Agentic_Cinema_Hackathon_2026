@@ -22,25 +22,25 @@ class FirestoreReader:
                 "GOOGLE_CLOUD_PROJECT is not configured."
             )
 
-        # Create Firestore client.
+        # Create the Firestore client.
         self.db = firestore.Client(
             project=self.project_id
         )
 
-        # Connect to the security-events collection.
+        # Connect to the security events collection.
         self.collection = self.db.collection(
             "security_events"
         )
 
     def get_recent_events(self, limit=20):
         """
-        Retrieve the most recent security events.
+        Retrieve the most recent Sentinel-A2A events.
         """
 
         documents = (
             self.collection
             .order_by(
-                "risk_score",
+                "timestamp",
                 direction=firestore.Query.DESCENDING
             )
             .limit(limit)
@@ -53,8 +53,7 @@ class FirestoreReader:
 
             event = document.to_dict()
 
-            # Include Firestore document ID so the dashboard
-            # can uniquely identify the event.
+            # Add the Firestore document ID.
             event["document_id"] = document.id
 
             events.append(event)
@@ -63,7 +62,7 @@ class FirestoreReader:
 
     def get_blocked_events(self, limit=20):
         """
-        Retrieve recently blocked requests.
+        Retrieve recently blocked security events.
         """
 
         documents = (
@@ -96,4 +95,6 @@ class FirestoreReader:
 
         documents = self.collection.stream()
 
-        return sum(1 for _ in documents)
+        return sum(
+            1 for _ in documents
+        )
