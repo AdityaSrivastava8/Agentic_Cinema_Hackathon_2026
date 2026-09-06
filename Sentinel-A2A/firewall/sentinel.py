@@ -8,31 +8,39 @@ class SentinelA2A:
     """
     Main security controller for Sentinel-A2A.
 
-    This class connects all firewall components and
-    processes an agent-to-agent communication from
-    beginning to end.
+    This class connects all security components and
+    processes agent-to-agent communication.
 
-    Flow:
+    Security pipeline:
 
-        Message
-           ↓
+        Agent Message
+             ↓
         Inspector
-           ↓
+             ↓
         Threat Detector
-           ↓
+             ↓
         Risk Engine
-           ↓
+             ↓
         Policy Engine
-           ↓
+             ↓
         ALLOW / QUARANTINE / BLOCK
     """
 
-    def _init_(self):
+    def __init__(self):
 
-        # Create the four security components.
+        # Initialize the message inspection layer.
         self.inspector = AgentInspector()
+
+        # Initialize the threat detection layer.
         self.threat_detector = ThreatDetector()
+
+        # Initialize the risk calculation layer.
         self.risk_engine = RiskEngine()
+
+        # Initialize the centralized policy engine.
+        #
+        # PolicyEngine automatically loads:
+        # config/policies.json
         self.policy_engine = PolicyEngine()
 
     def inspect_message(
@@ -40,35 +48,31 @@ class SentinelA2A:
         source_agent,
         target_agent,
         message,
-        tool=None,
-        allowed_tools=None
+        tool=None
     ):
         """
-        Run a complete security inspection.
+        Perform a complete Sentinel-A2A security inspection.
 
         Parameters:
             source_agent:
-                Agent sending the message.
+                Agent sending the request.
 
             target_agent:
-                Agent receiving the message.
+                Agent receiving the request.
 
             message:
-                Message being transmitted.
+                Actual message being transmitted.
 
             tool:
                 Optional MCP/API tool being requested.
-
-            allowed_tools:
-                Tools that the source agent is authorized to use.
 
         Returns:
             Complete security analysis.
         """
 
-        # ---------------------------------------------
+        # -------------------------------------------------
         # STEP 1: Capture the communication
-        # ---------------------------------------------
+        # -------------------------------------------------
 
         security_event = self.inspector.inspect(
             source_agent=source_agent,
@@ -77,45 +81,45 @@ class SentinelA2A:
             tool=tool
         )
 
-        # ---------------------------------------------
+        # -------------------------------------------------
         # STEP 2: Detect threats
-        # ---------------------------------------------
+        # -------------------------------------------------
 
         threats = self.threat_detector.detect(message)
 
-        # Add detected threats to the security event.
+        # Store detected threats in the security event.
         security_event["threats"] = threats
 
-        # ---------------------------------------------
+        # -------------------------------------------------
         # STEP 3: Calculate risk
-        # ---------------------------------------------
+        # -------------------------------------------------
 
         risk_score = self.risk_engine.calculate(threats)
 
-        # Store the calculated risk score.
+        # Store the numerical risk score.
         security_event["risk_score"] = risk_score
 
-        # Convert numerical score into LOW/MEDIUM/HIGH.
+        # Convert the score into:
+        # LOW / MEDIUM / HIGH
         security_event["risk_level"] = (
             self.risk_engine.get_risk_level(risk_score)
         )
 
-        # ---------------------------------------------
-        # STEP 4: Make the security decision
-        # ---------------------------------------------
+        # -------------------------------------------------
+        # STEP 4: Enforce security policy
+        # -------------------------------------------------
 
         decision = self.policy_engine.evaluate(
             risk_score=risk_score,
-            threats=threats,
-            tool=tool,
-            allowed_tools=allowed_tools
+            source_agent=source_agent,
+            tool=tool
         )
 
-        # Store the final decision.
+        # Store the final security decision.
         security_event["decision"] = decision
 
-        # ---------------------------------------------
+        # -------------------------------------------------
         # STEP 5: Return complete security report
-        # ---------------------------------------------
+        # -------------------------------------------------
 
-        return security_event
+        return security_event 
