@@ -2,6 +2,7 @@ import streamlit as st
 
 from agents.agent_router import AgentRouter
 from cloud.firestore_reader import FirestoreReader
+from cloud.security_analytics import SecurityAnalytics
 from tests.attack_scenarios import ATTACK_SCENARIOS
 
 
@@ -20,16 +21,6 @@ st.set_page_config(
 # INITIALIZE SYSTEM
 # =========================================================
 
-# Creates the complete agent communication pipeline:
-#
-# ShoppingAgent
-#       ↓
-# Sentinel-A2A
-#       ↓
-# PaymentAgent
-#       ↓
-# MCP Gateway
-#
 router = AgentRouter()
 
 
@@ -37,21 +28,12 @@ router = AgentRouter()
 # FIRESTORE CONNECTION
 # =========================================================
 
-# Try to connect to Google Cloud Firestore.
-#
-# If Google Cloud is not configured yet, the application
-# will continue running without historical event storage.
-
 try:
-
     firestore_reader = FirestoreReader()
-
     firestore_available = True
 
 except Exception:
-
     firestore_reader = None
-
     firestore_available = False
 
 
@@ -80,7 +62,6 @@ st.divider()
 
 st.subheader("📊 Security Overview")
 
-
 if firestore_available:
 
     try:
@@ -98,21 +79,18 @@ if firestore_available:
         col1, col2, col3 = st.columns(3)
 
         with col1:
-
             st.metric(
                 "Events Inspected",
                 total_events
             )
 
         with col2:
-
             st.metric(
                 "Threats Blocked",
                 len(blocked_events)
             )
 
         with col3:
-
             st.metric(
                 "Firewall Status",
                 "🟢 ACTIVE"
@@ -134,12 +112,177 @@ else:
 
 
 # =========================================================
+# SECURITY ANALYTICS
+# =========================================================
+
+st.divider()
+
+st.subheader("📈 Security Analytics")
+
+if firestore_available:
+
+    try:
+
+        # Retrieve security events from Firestore.
+        analytics_events = (
+            firestore_reader.get_recent_events(
+                limit=100
+            )
+        )
+
+        # Pass the events to the analytics engine.
+        analytics = SecurityAnalytics(
+            analytics_events
+        )
+
+        # Generate complete analytics summary.
+        summary = analytics.summary()
+
+
+        # -------------------------------------------------
+        # MAIN METRICS
+        # -------------------------------------------------
+
+        col1, col2, col3, col4, col5 = st.columns(5)
+
+        with col1:
+
+            st.metric(
+                "Total Events",
+                summary["total_events"]
+            )
+
+        with col2:
+
+            st.metric(
+                "🟢 Allowed",
+                summary["allowed"]
+            )
+
+        with col3:
+
+            st.metric(
+                "🟡 Quarantined",
+                summary["quarantined"]
+            )
+
+        with col4:
+
+            st.metric(
+                "🔴 Blocked",
+                summary["blocked"]
+            )
+
+        with col5:
+
+            st.metric(
+                "⚠️ High Risk",
+                summary["high_risk"]
+            )
+
+
+        # -------------------------------------------------
+        # AVERAGE RISK SCORE
+        # -------------------------------------------------
+
+        st.metric(
+            "Average Risk Score",
+            summary["average_risk_score"]
+        )
+
+
+        # -------------------------------------------------
+        # RISK DISTRIBUTION
+        # -------------------------------------------------
+
+        st.subheader(
+            "⚠️ Risk Distribution"
+        )
+
+        risk_levels = summary["risk_levels"]
+
+        if risk_levels:
+
+            st.bar_chart(
+                risk_levels
+            )
+
+        else:
+
+            st.info(
+                "No risk data available yet."
+            )
+
+
+        # -------------------------------------------------
+        # MCP TOOL ACTIVITY
+        # -------------------------------------------------
+
+        st.subheader(
+            "🔧 MCP Tool Activity"
+        )
+
+        tools = summary["tools"]
+
+        if tools:
+
+            st.bar_chart(
+                tools
+            )
+
+        else:
+
+            st.info(
+                "No MCP tool activity recorded yet."
+            )
+
+
+        # -------------------------------------------------
+        # AGENT ACTIVITY
+        # -------------------------------------------------
+
+        st.subheader(
+            "🤖 Agent Activity"
+        )
+
+        agents = summary["agents"]
+
+        if agents:
+
+            st.bar_chart(
+                agents
+            )
+
+        else:
+
+            st.info(
+                "No agent activity recorded yet."
+            )
+
+
+    except Exception as error:
+
+        st.warning(
+            f"Unable to generate analytics: {error}"
+        )
+
+else:
+
+    st.info(
+        "📡 Security analytics will appear after "
+        "Firestore is connected."
+    )
+
+
+# =========================================================
 # ATTACK SIMULATOR
 # =========================================================
 
 st.divider()
 
-st.subheader("🚨 Attack Simulator")
+st.subheader(
+    "🚨 Attack Simulator"
+)
 
 st.write(
     "Simulate realistic attacks against AI-agent "
@@ -147,7 +290,7 @@ st.write(
 )
 
 
-# Create a list containing all available attack names.
+# Get attack scenario names.
 
 scenario_names = [
     scenario["name"]
@@ -163,7 +306,7 @@ selected_scenario = st.selectbox(
 )
 
 
-# Find the complete scenario object.
+# Find selected scenario.
 
 scenario = next(
     scenario
@@ -172,7 +315,7 @@ scenario = next(
 )
 
 
-# Display what the selected attack does.
+# Show attack description.
 
 st.info(
     f'**{scenario["name"]}:** '
@@ -180,15 +323,15 @@ st.info(
 )
 
 
-# Run the selected attack.
+# Run attack.
 
 if st.button(
     "🚨 Run Attack Simulation",
     use_container_width=True
 ):
 
-    # Send the simulated malicious request through
-    # the same security pipeline as a real request.
+    # Send malicious request through the same
+    # Sentinel-A2A pipeline used by real agents.
 
     result = router.send_to_payment_agent(
         message=scenario["message"],
@@ -200,7 +343,7 @@ if st.button(
 
 
     # -----------------------------------------------------
-    # SECURITY RESULT
+    # ATTACK RESULT
     # -----------------------------------------------------
 
     st.subheader(
@@ -232,7 +375,7 @@ if st.button(
 
 
     # -----------------------------------------------------
-    # FINAL DECISION MESSAGE
+    # DECISION MESSAGE
     # -----------------------------------------------------
 
     if security["decision"] == "BLOCK":
@@ -305,7 +448,7 @@ if st.button(
 
 
     # -----------------------------------------------------
-    # EVENT INFORMATION
+    # EVENT DETAILS
     # -----------------------------------------------------
 
     st.subheader(
@@ -344,16 +487,18 @@ if st.button(
 
 st.divider()
 
-st.subheader("🔍 Inspect Agent Request")
+st.subheader(
+    "🔍 Inspect Agent Request"
+)
 
 st.write(
-    "Test a custom communication between the "
+    "Test custom communication between "
     "ShoppingAgent and PaymentAgent."
 )
 
 
 # ---------------------------------------------------------
-# AGENT MESSAGE
+# MESSAGE
 # ---------------------------------------------------------
 
 message = st.text_area(
@@ -365,7 +510,7 @@ message = st.text_area(
 
 
 # ---------------------------------------------------------
-# MCP TOOL SELECTION
+# MCP TOOL
 # ---------------------------------------------------------
 
 tool = st.selectbox(
@@ -448,7 +593,7 @@ if st.button(
 
     else:
 
-        # Send the request through Sentinel-A2A.
+        # Send request through Sentinel-A2A.
 
         result = router.send_to_payment_agent(
             message=message,
@@ -460,7 +605,7 @@ if st.button(
 
 
         # -------------------------------------------------
-        # SECURITY RESULT
+        # SECURITY ANALYSIS
         # -------------------------------------------------
 
         st.divider()
@@ -503,7 +648,7 @@ if st.button(
 
 
         # -------------------------------------------------
-        # EVENT DETAILS
+        # EVENT INFORMATION
         # -------------------------------------------------
 
         st.caption(
@@ -565,7 +710,8 @@ if st.button(
                 "Sentinel-A2A security checks."
             )
 
-            # Show PaymentAgent response.
+
+            # Payment response.
 
             if result["payment"]:
 
@@ -578,7 +724,7 @@ if st.button(
                 )
 
 
-            # Show MCP response.
+            # MCP result.
 
             if result["mcp_result"]:
 
@@ -647,7 +793,7 @@ if firestore_available:
                 )
 
 
-                # Select an icon based on the decision.
+                # Determine event icon.
 
                 if decision == "BLOCK":
 
@@ -662,7 +808,7 @@ if firestore_available:
                     icon = "🟢"
 
 
-                # Each event can be expanded.
+                # Display event in expandable section.
 
                 with st.expander(
                     f"{icon} "
@@ -702,7 +848,7 @@ if firestore_available:
                     )
 
 
-                    # Show threats if present.
+                    # Display detected threats.
 
                     if event.get("threats"):
 
@@ -717,7 +863,7 @@ if firestore_available:
                             )
 
 
-                    # Show Gemini analysis if available.
+                    # Display Gemini analysis.
 
                     if event.get("gemini_analysis"):
 
