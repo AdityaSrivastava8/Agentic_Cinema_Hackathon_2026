@@ -1,53 +1,76 @@
+import os
+
 from firewall.inspector import AgentInspector
 from firewall.threat_detector import ThreatDetector
 from firewall.risk_engine import RiskEngine
 from firewall.policy_engine import PolicyEngine
 from firewall.authorization import AuthorizationEngine
 from firewall.gemini_analyzer import GeminiAnalyzer
+from cloud.firestore_logger import FirestoreLogger
 
 
 class SentinelA2A:
     """
     Main security controller for Sentinel-A2A.
 
-    Security pipeline:
+    Every request passes through:
 
         Agent Request
              ↓
         Inspector
              ↓
-        Rule-Based Threat Detection
+        Threat Detection
              ↓
         Risk Engine
              ↓
         Authorization
              ↓
-        Gemini Semantic Analysis
+        Gemini Analysis
              ↓
         Policy Engine
+             ↓
+        Firestore Logging
              ↓
         ALLOW / QUARANTINE / BLOCK
     """
 
     def __init__(self):
 
-        # Capture information about agent communication.
+        # Basic communication inspection.
         self.inspector = AgentInspector()
 
-        # Detect known threats using deterministic rules.
+        # Rule-based threat detection.
         self.threat_detector = ThreatDetector()
 
-        # Calculate the initial numerical risk score.
+        # Numerical risk calculation.
         self.risk_engine = RiskEngine()
 
-        # Apply the centralized security policies.
+        # Centralized security policy.
         self.policy_engine = PolicyEngine()
 
-        # Check agent/tool permissions.
+        # Agent/tool authorization.
         self.authorization = AuthorizationEngine()
 
-        # Use Gemini for semantic security analysis.
+        # Gemini semantic security analysis.
         self.gemini = GeminiAnalyzer()
+
+        # -------------------------------------------------
+        # Google Cloud Firestore
+        # -------------------------------------------------
+
+        # Read the Google Cloud project ID from the
+        # environment.
+        project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+
+        # Create the Firestore logger only when a
+        # Google Cloud project is configured.
+        #
+        # This allows the firewall to still run locally
+        # without Firestore.
+        if project_id:
+            self.logger = FirestoreLogger(project_id)
+        else:
+            self.logger = None
 
     def inspect_message(
         self,
@@ -57,11 +80,7 @@ class SentinelA2A:
         tool=None
     ):
         """
-        Perform complete Sentinel-A2A analysis.
-
-        The request is analyzed using both:
-        - deterministic security rules
-        - Gemini semantic reasoning
+        Inspect one agent-to-agent/tool request.
         """
 
         # -------------------------------------------------
@@ -76,7 +95,7 @@ class SentinelA2A:
         )
 
         # -------------------------------------------------
-        # STEP 2: Rule-based threat detection
+        # STEP 2: Detect threats
         # -------------------------------------------------
 
         threats = self.threat_detector.detect(message)
@@ -84,7 +103,7 @@ class SentinelA2A:
         security_event["threats"] = threats
 
         # -------------------------------------------------
-        # STEP 3: Calculate initial risk
+        # STEP 3: Calculate risk
         # -------------------------------------------------
 
         risk_score = self.risk_engine.calculate(threats)
@@ -96,7 +115,7 @@ class SentinelA2A:
         )
 
         # -------------------------------------------------
-        # STEP 4: Authorization check
+        # STEP 4: Authorization
         # -------------------------------------------------
 
         if tool:
@@ -112,56 +131,69 @@ class SentinelA2A:
 
         security_event["authorized"] = authorized
 
-        # Unauthorized tools are immediately blocked.
+        # Unauthorized tool access is immediately blocked.
         if not authorized:
 
             security_event["decision"] = "BLOCK"
             security_event["gemini_analysis"] = None
 
-            return security_event
-
-        # -------------------------------------------------
-        # STEP 5: Gemini semantic analysis
-        # -------------------------------------------------
-
-        gemini_analysis = self.gemini.analyze(
-            source_agent=source_agent,
-            target_agent=target_agent,
-            message=message,
-            tool=tool
-        )
-
-        # Store Gemini's analysis for the dashboard
-        # and future logging.
-        security_event["gemini_analysis"] = gemini_analysis
-
-        # -------------------------------------------------
-        # STEP 6: Combine security signals
-        # -------------------------------------------------
-
-        # Gemini's recommendation is used as an additional
-        # security signal rather than blindly trusting it.
-        if "BLOCK" in gemini_analysis.upper():
-
-            decision = "BLOCK"
-
-        elif "QUARANTINE" in gemini_analysis.upper():
-
-            decision = "QUARANTINE"
-
         else:
 
-            # Fall back to our deterministic policy engine.
-            decision = self.policy_engine.evaluate(
-                risk_score=risk_score,
+            # ---------------------------------------------
+            # STEP 5: Gemini semantic analysis
+            # ---------------------------------------------
+
+            gemini_analysis = self.gemini.analyze(
                 source_agent=source_agent,
+                target_agent=target_agent,
+                message=message,
                 tool=tool
             )
 
+            security_event["gemini_analysis"] = gemini_analysis
+
+            # ---------------------------------------------
+            # STEP 6: Final security decision
+            # ---------------------------------------------
+
+            if "BLOCK" in gemini_analysis.upper():
+
+                decision = "BLOCK"
+
+            elif "QUARANTINE" in gemini_analysis.upper():
+
+                decision = "QUARANTINE"
+
+            else:
+
+                decision = self.policy_engine.evaluate(
+                    risk_score=risk_score,
+                    source_agent=source_agent,
+                    tool=tool
+                )
+
+            security_event["decision"] = decision
+
         # -------------------------------------------------
-        # STEP 7: Store final decision
+        # STEP 7: Store security event in Firestore
         # -------------------------------------------------
 
-        security_event["decision"] = decision
+        if self.logger:
 
-        return security_event 
+            try:
+
+                document_id = self.logger.log_event(
+                    security_event
+                )
+
+                security_event["firestore_document_id"] = (
+                    document_id
+                )
+
+            except Exception as error:
+
+                # Logging failure should not crash the
+                # security firewall.
+                security_event["logging_error"] = str(error)
+
+        return security_event
