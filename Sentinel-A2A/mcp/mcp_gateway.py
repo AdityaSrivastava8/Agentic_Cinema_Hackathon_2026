@@ -9,7 +9,7 @@ class MCPGateway:
     Only approved requests should reach this gateway.
     """
 
-    def _init_(self):
+    def __init__(self):
         # Initialize our simulated MCP tool server.
         self.tools = MCPTools()
 

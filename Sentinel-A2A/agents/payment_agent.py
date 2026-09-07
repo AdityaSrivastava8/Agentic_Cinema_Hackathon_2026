@@ -7,7 +7,7 @@ class PaymentAgent:
     the PaymentAgent is allowed to process them.
     """
 
-    def _init_(self):
+    def __init__(self):
         # Unique identity of this agent.
         self.name = "PaymentAgent"
 

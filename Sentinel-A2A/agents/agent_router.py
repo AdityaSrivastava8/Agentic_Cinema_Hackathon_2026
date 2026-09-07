@@ -63,13 +63,11 @@ class AgentRouter:
         the PaymentAgent and requested MCP tool can execute.
         """
 
-        # Use an empty dictionary when no tool arguments
-        # are provided.
         if tool_arguments is None:
             tool_arguments = {}
 
         # -------------------------------------------------
-        # STEP 1 — CREATE AGENT REQUEST
+        # STEP 1 — CREATE SHOPPING AGENT REQUEST
         # -------------------------------------------------
 
         request = self.shopping_agent.create_request(
@@ -94,8 +92,6 @@ class AgentRouter:
 
         if security_result["decision"] != "ALLOW":
 
-            # The request never reaches the PaymentAgent
-            # or MCP tool.
             return {
                 "security": security_result,
                 "payment": None,
@@ -132,5 +128,72 @@ class AgentRouter:
         return {
             "security": security_result,
             "payment": payment_result,
+            "mcp_result": mcp_result
+        }
+
+    def send_payment_status_request(
+        self,
+        message,
+        tool="get_payment_status",
+        tool_arguments=None
+    ):
+        """
+        Send a legitimate payment-status request
+        originating from the PaymentAgent.
+
+        This allows Sentinel-A2A to evaluate the request
+        using PaymentAgent's authorized tool permissions.
+        """
+
+        if tool_arguments is None:
+            tool_arguments = {}
+
+        # -------------------------------------------------
+        # STEP 1 — PAYMENT AGENT IS THE SOURCE
+        # -------------------------------------------------
+
+        source_agent = self.payment_agent.name
+
+        target_agent = self.payment_agent.name
+
+        # -------------------------------------------------
+        # STEP 2 — SEND THROUGH SENTINEL-A2A
+        # -------------------------------------------------
+
+        security_result = self.sentinel.inspect_message(
+            source_agent=source_agent,
+            target_agent=target_agent,
+            message=message,
+            tool=tool
+        )
+
+        # -------------------------------------------------
+        # STEP 3 — ENFORCE SECURITY DECISION
+        # -------------------------------------------------
+
+        if security_result["decision"] != "ALLOW":
+
+            return {
+                "security": security_result,
+                "payment": None,
+                "mcp_result": None
+            }
+
+        # -------------------------------------------------
+        # STEP 4 — EXECUTE AUTHORIZED MCP TOOL
+        # -------------------------------------------------
+
+        mcp_result = self.mcp_gateway.execute(
+            tool,
+            **tool_arguments
+        )
+
+        # -------------------------------------------------
+        # STEP 5 — RETURN RESULT
+        # -------------------------------------------------
+
+        return {
+            "security": security_result,
+            "payment": None,
             "mcp_result": mcp_result
         }

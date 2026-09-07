@@ -7,7 +7,7 @@ class ShoppingAgent:
     Sentinel-A2A before reaching them.
     """
 
-    def _init_(self):
+    def __init__(self):
         # Name used to identify this agent.
         self.name = "ShoppingAgent"
 

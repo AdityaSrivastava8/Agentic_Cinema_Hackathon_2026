@@ -14,14 +14,13 @@ from firewall.threat_intelligence import ThreatIntelligence
 from firewall.security_response import SecurityResponseEngine
 
 from cloud.firestore_logger import FirestoreLogger
-from cloud.agent_trust import AgentTrustEngine
 
 
 class SentinelA2A:
     """
     Main security controller for Sentinel-A2A.
 
-    Complete security pipeline:
+    Security pipeline:
 
         Agent Request
              |
@@ -32,19 +31,16 @@ class SentinelA2A:
         Threat Detection
              |
              v
-        Risk Engine
+        Risk Analysis
              |
              v
         Authorization
              |
              v
-        Gemini Analysis
+        Gemini Analysis (optional)
              |
              v
         Behavior Analysis
-             |
-             v
-        Agent Trust
              |
              v
         Threat Intelligence
@@ -54,11 +50,10 @@ class SentinelA2A:
              |
         +----+----+
         |         |
-      ALLOW    BLOCK/
-               QUARANTINE
-             |
-             v
-        Firestore Logging
+      ALLOW   BLOCK / QUARANTINE
+        |
+        v
+    MCP Gateway
     """
 
     def __init__(self):
@@ -77,28 +72,38 @@ class SentinelA2A:
 
         self.authorization = AuthorizationEngine()
 
+        # Gemini is optional.
+        # The GeminiAnalyzer itself should safely handle
+        # a missing API key.
         self.gemini = GeminiAnalyzer()
 
 
         # -------------------------------------------------
-        # ADVANCED SECURITY COMPONENTS
+        # BEHAVIORAL SECURITY
         # -------------------------------------------------
 
-        # Tracks suspicious behavior across requests.
+        # Tracks the recent behavior of AI agents.
         self.behavior_analyzer = BehaviorAnalyzer()
 
-        # Maintains behavioral trust scores for agents.
-        self.trust_engine = AgentTrustEngine()
 
-        # Provides threat severity and recommended actions.
+        # -------------------------------------------------
+        # THREAT INTELLIGENCE
+        # -------------------------------------------------
+
         self.threat_intelligence = ThreatIntelligence()
-
-        # Produces the final ALLOW / QUARANTINE / BLOCK decision.
-        self.security_response = SecurityResponseEngine()
 
 
         # -------------------------------------------------
-        # GOOGLE CLOUD / FIRESTORE
+        # FINAL SECURITY DECISION
+        # -------------------------------------------------
+
+        self.security_response = (
+            SecurityResponseEngine()
+        )
+
+
+        # -------------------------------------------------
+        # OPTIONAL FIRESTORE LOGGING
         # -------------------------------------------------
 
         project_id = os.getenv(
@@ -107,9 +112,17 @@ class SentinelA2A:
 
         if project_id:
 
-            self.logger = FirestoreLogger(
-                project_id
-            )
+            try:
+
+                self.logger = FirestoreLogger(
+                    project_id
+                )
+
+            except Exception:
+
+                # Firestore must never prevent
+                # Sentinel-A2A from running.
+                self.logger = None
 
         else:
 
@@ -134,14 +147,14 @@ class SentinelA2A:
         - Target agent
         - Requested tool
         - Detected threats
-        - Risk score
+        - Base risk score
+        - Final risk score
         - Risk level
-        - Authorization
+        - Authorization status
         - Gemini analysis
-        - Agent trust
         - Behavioral analysis
         - Threat intelligence
-        - Final decision
+        - Final security decision
         """
 
         # -------------------------------------------------
@@ -154,6 +167,14 @@ class SentinelA2A:
             message=message,
             tool=tool
         )
+
+        # Make sure the inspector result is a dictionary.
+        if not isinstance(
+            security_event,
+            dict
+        ):
+
+            security_event = {}
 
 
         # Create unique security event ID.
@@ -170,6 +191,17 @@ class SentinelA2A:
                 timezone.utc
             ).isoformat()
         )
+
+
+        security_event["source_agent"] = (
+            source_agent
+        )
+
+        security_event["target_agent"] = (
+            target_agent
+        )
+
+        security_event["tool"] = tool
 
 
         # -------------------------------------------------
@@ -238,10 +270,12 @@ class SentinelA2A:
 
             except Exception as error:
 
-                # Gemini failure must not crash the firewall.
+                # Gemini failure must NEVER
+                # crash Sentinel-A2A.
 
                 gemini_analysis = (
-                    f"Gemini analysis unavailable: {error}"
+                    "Gemini analysis unavailable: "
+                    + str(error)
                 )
 
 
@@ -251,7 +285,7 @@ class SentinelA2A:
 
 
         # -------------------------------------------------
-        # STEP 6 — AGENT BEHAVIOR
+        # STEP 6 — BEHAVIOR ANALYSIS
         # -------------------------------------------------
 
         behavior_result = (
@@ -260,63 +294,45 @@ class SentinelA2A:
             )
         )
 
-        behavior_score = behavior_result.get(
-            "anomaly_score",
+        behavior_score = (
+            behavior_result.get(
+                "anomaly_score",
+                0
+            )
+        )
+
+
+        security_event[
+            "behavior_anomaly_score"
+        ] = behavior_score
+
+
+        security_event[
+            "behavior_anomaly"
+        ] = behavior_result.get(
+            "anomaly",
+            False
+        )
+
+
+        security_event[
+            "behavior_reasons"
+        ] = behavior_result.get(
+            "reasons",
+            []
+        )
+
+
+        security_event[
+            "behavior_requests_analyzed"
+        ] = behavior_result.get(
+            "requests_analyzed",
             0
         )
 
 
-        security_event["behavior_anomaly_score"] = (
-            behavior_score
-        )
-
-        security_event["behavior_anomaly"] = (
-            behavior_result.get(
-                "anomaly",
-                False
-            )
-        )
-
-        security_event["behavior_reasons"] = (
-            behavior_result.get(
-                "reasons",
-                []
-            )
-        )
-
-
         # -------------------------------------------------
-        # STEP 7 — AGENT TRUST
-        # -------------------------------------------------
-
-        trust_result = (
-            self.trust_engine.get_agent_status(
-                source_agent
-            )
-        )
-
-        trust_score = trust_result.get(
-            "trust_score",
-            100
-        )
-
-        trust_level = trust_result.get(
-            "trust_level",
-            "TRUSTED"
-        )
-
-
-        security_event["agent_trust_score"] = (
-            trust_score
-        )
-
-        security_event["agent_trust_level"] = (
-            trust_level
-        )
-
-
-        # -------------------------------------------------
-        # STEP 8 — THREAT INTELLIGENCE
+        # STEP 7 — THREAT INTELLIGENCE
         # -------------------------------------------------
 
         threat_summary = (
@@ -326,15 +342,17 @@ class SentinelA2A:
         )
 
 
-        security_event["threat_intelligence"] = (
-            threat_summary
-        )
+        security_event[
+            "threat_intelligence"
+        ] = threat_summary
+
 
         threat_severity = (
             threat_summary[
                 "highest_severity"
             ]
         )
+
 
         threat_action = (
             threat_summary[
@@ -344,10 +362,11 @@ class SentinelA2A:
 
 
         # -------------------------------------------------
-        # STEP 9 — GEMINI DECISION SIGNAL
+        # STEP 8 — GEMINI SECURITY SIGNAL
         # -------------------------------------------------
 
-        # Gemini may provide an additional security signal.
+        # Gemini is only an additional signal.
+        # It is NOT required for Sentinel to work.
 
         gemini_text = str(
             gemini_analysis or ""
@@ -367,14 +386,14 @@ class SentinelA2A:
 
 
         # -------------------------------------------------
-        # STEP 10 — FINAL SECURITY RESPONSE
+        # STEP 9 — FINAL SECURITY RESPONSE
         # -------------------------------------------------
 
         final_result = (
             self.security_response.evaluate(
                 base_risk=base_risk,
                 behavior_score=behavior_score,
-                trust_score=trust_score,
+                trust_score=100,
                 threat_severity=threat_severity,
                 authorized=authorized,
                 threat_action=threat_action
@@ -386,22 +405,30 @@ class SentinelA2A:
             final_result["risk_score"]
         )
 
+
         security_event["risk_level"] = (
             final_result["risk_level"]
         )
+
 
         security_event["decision"] = (
             final_result["decision"]
         )
 
-        security_event["recommended_action"] = (
-            threat_action
-        )
+
+        security_event[
+            "recommended_action"
+        ] = threat_action
 
 
         # -------------------------------------------------
-        # STEP 11 — RECORD BEHAVIOR
+        # STEP 10 — RECORD BEHAVIOR
         # -------------------------------------------------
+
+        # Record the current request AFTER the decision.
+        #
+        # This is important because the current request
+        # should become part of the agent's future history.
 
         self.behavior_analyzer.record_request(
             agent_name=source_agent,
@@ -416,22 +443,7 @@ class SentinelA2A:
 
 
         # -------------------------------------------------
-        # STEP 12 — UPDATE AGENT TRUST
-        # -------------------------------------------------
-
-        self.trust_engine.record_event(
-            agent_name=source_agent,
-            decision=final_result[
-                "decision"
-            ],
-            risk_score=final_result[
-                "risk_score"
-            ]
-        )
-
-
-        # -------------------------------------------------
-        # STEP 13 — FIRESTORE LOGGING
+        # STEP 11 — FIRESTORE LOGGING
         # -------------------------------------------------
 
         if self.logger:
@@ -450,8 +462,8 @@ class SentinelA2A:
 
             except Exception as error:
 
-                # Logging failure should never
-                # bring down the security firewall.
+                # Logging failure must never
+                # stop Sentinel-A2A.
 
                 security_event[
                     "logging_error"
@@ -459,7 +471,7 @@ class SentinelA2A:
 
 
         # -------------------------------------------------
-        # STEP 14 — RETURN SECURITY REPORT
+        # STEP 12 — RETURN SECURITY REPORT
         # -------------------------------------------------
 
-        return security_event
+        return security_event 

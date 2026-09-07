@@ -16,7 +16,7 @@ class ThreatDetector:
     Later, Gemini will be added for semantic analysis.
     """
 
-    def _init_(self):
+    def __init__(self):
         # Patterns commonly associated with prompt injection
         # and malicious instructions.
         self.prompt_injection_patterns = [
@@ -71,4 +71,4 @@ class ThreatDetector:
                 threats.append("Dangerous Instruction")
                 break
 
-        return threats
+        return threats 

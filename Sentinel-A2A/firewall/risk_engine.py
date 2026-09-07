@@ -13,7 +13,7 @@ class RiskEngine:
     Sentinel-A2A's ThreatDetector.
     """
 
-    def _init_(self):
+    def __init__(self):
 
         # Assign a risk value to each known threat.
         #

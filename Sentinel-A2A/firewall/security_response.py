@@ -20,9 +20,16 @@ class SecurityResponseEngine:
 
     def __init__(self):
 
-        # Risk thresholds.
-        self.block_threshold = 80
-        self.quarantine_threshold = 50
+        # -------------------------------------------------
+        # RISK THRESHOLDS
+        # -------------------------------------------------
+
+        # 0–29   → ALLOW
+        # 30–69  → QUARANTINE
+        # 70–100 → BLOCK
+
+        self.quarantine_threshold = 30
+        self.block_threshold = 70
 
     def calculate_risk(
         self,
@@ -43,22 +50,18 @@ class SecurityResponseEngine:
         # BEHAVIOR SCORE
         # -------------------------------------------------
 
-        # Suspicious historical behavior increases risk.
         risk += behavior_score * 0.25
-
 
         # -------------------------------------------------
         # AGENT TRUST
         # -------------------------------------------------
 
-        # Low trust increases risk.
         trust_penalty = max(
             0,
             (100 - trust_score) * 0.25
         )
 
         risk += trust_penalty
-
 
         # -------------------------------------------------
         # THREAT SEVERITY
@@ -76,19 +79,19 @@ class SecurityResponseEngine:
             0
         )
 
-
         # -------------------------------------------------
         # AUTHORIZATION
         # -------------------------------------------------
 
         if not authorized:
 
-            # Unauthorized requests receive a large
-            # risk increase.
+            # Unauthorized requests receive a
+            # significant risk increase.
             risk += 40
 
-
-        # Keep score between 0 and 100.
+        # -------------------------------------------------
+        # LIMIT SCORE
+        # -------------------------------------------------
 
         return round(
             min(
@@ -112,20 +115,20 @@ class SecurityResponseEngine:
         # AUTHORIZATION OVERRIDE
         # -------------------------------------------------
 
-        # An unauthorized request must never be allowed.
+        # Unauthorized requests must always be blocked.
         if not authorized:
 
             return "BLOCK"
-
 
         # -------------------------------------------------
         # THREAT INTELLIGENCE OVERRIDE
         # -------------------------------------------------
 
+        # Explicit threat intelligence can immediately
+        # block a request.
         if threat_action == "BLOCK":
 
             return "BLOCK"
-
 
         # -------------------------------------------------
         # RISK-BASED DECISION
@@ -138,7 +141,6 @@ class SecurityResponseEngine:
         if risk_score >= self.quarantine_threshold:
 
             return "QUARANTINE"
-
 
         return "ALLOW"
 
@@ -158,6 +160,10 @@ class SecurityResponseEngine:
         firewall and dashboard.
         """
 
+        # -------------------------------------------------
+        # CALCULATE RISK
+        # -------------------------------------------------
+
         risk_score = self.calculate_risk(
             base_risk=base_risk,
             behavior_score=behavior_score,
@@ -166,24 +172,25 @@ class SecurityResponseEngine:
             authorized=authorized
         )
 
+        # -------------------------------------------------
+        # DETERMINE DECISION
+        # -------------------------------------------------
+
         decision = self.decide(
             risk_score=risk_score,
             authorized=authorized,
             threat_action=threat_action
         )
 
+        # -------------------------------------------------
+        # RISK LEVEL
+        # -------------------------------------------------
 
-        # Determine human-readable risk level.
-
-        if risk_score >= 80:
-
-            risk_level = "CRITICAL"
-
-        elif risk_score >= 50:
+        if risk_score >= 70:
 
             risk_level = "HIGH"
 
-        elif risk_score >= 25:
+        elif risk_score >= 30:
 
             risk_level = "MEDIUM"
 
@@ -191,6 +198,9 @@ class SecurityResponseEngine:
 
             risk_level = "LOW"
 
+        # -------------------------------------------------
+        # FINAL RESPONSE
+        # -------------------------------------------------
 
         return {
             "risk_score": risk_score,

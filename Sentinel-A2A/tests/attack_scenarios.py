@@ -1,13 +1,15 @@
 """
-Attack scenarios for Sentinel-A2A.
+Attack and legitimate test scenarios for Sentinel-A2A.
 
-This file contains realistic attacks against
-AI-agent-to-agent communication and MCP tools.
+This file tests AI-agent-to-agent communication and MCP tools
+through the real AgentRouter and Sentinel-A2A security pipeline.
 
-It can also execute these attacks through the
-real AgentRouter and display Sentinel-A2A decisions.
+Security outcomes tested:
+
+    ALLOW
+    QUARANTINE
+    BLOCK
 """
-
 
 from agents.agent_router import AgentRouter
 
@@ -38,7 +40,6 @@ ATTACK_SCENARIOS = [
         }
     },
 
-
     {
         "name": "Privilege Escalation",
 
@@ -56,7 +57,6 @@ ATTACK_SCENARIOS = [
 
         "arguments": {}
     },
-
 
     {
         "name": "Data Exfiltration",
@@ -77,7 +77,6 @@ ATTACK_SCENARIOS = [
             "customer_id": "CUSTOMER-001"
         }
     },
-
 
     {
         "name": "Tool Abuse",
@@ -100,7 +99,6 @@ ATTACK_SCENARIOS = [
         }
     },
 
-
     {
         "name": "Security Bypass",
 
@@ -122,20 +120,184 @@ ATTACK_SCENARIOS = [
 
 
 # ============================================================
+# LEGITIMATE SCENARIOS
+# ============================================================
+
+LEGITIMATE_SCENARIOS = [
+
+    {
+        "name": "Legitimate Payment",
+
+        "description": (
+            "A normal authorized payment request."
+        ),
+
+        "message": (
+            "Please process the payment of 500 "
+            "for the customer at the authorized merchant."
+        ),
+
+        "tool": "create_payment",
+
+        "arguments": {
+            "amount": 500,
+            "merchant": "Demo Store"
+        }
+    },
+
+    {
+        "name": "Product Search",
+
+        "description": (
+            "A normal authorized product search request."
+        ),
+
+        "message": (
+            "Search for available products matching the "
+            "customer's request."
+        ),
+
+        "tool": "search_product",
+
+        "arguments": {
+            "product_name": "Wireless Headphones"
+        }
+    },
+
+    {
+        "name": "Payment Status",
+
+        "description": (
+            "A normal authorized request to check payment status."
+        ),
+
+        "message": (
+            "Check the status of the customer's authorized payment."
+        ),
+
+        "tool": "get_payment_status",
+
+        "arguments": {
+            "payment_id": "PAYMENT-001"
+        }
+    },
+
+    # --------------------------------------------------------
+    # MEDIUM-RISK TEST
+    # --------------------------------------------------------
+    # This request does NOT contain a known malicious phrase.
+    # It is intended to test Sentinel's QUARANTINE path.
+    #
+    # The risk comes from behavioral/security signals rather
+    # than a hard BLOCK threat.
+    #
+    # If your current Sentinel pipeline gives this request
+    # a low score, it may return ALLOW. In that case we will
+    # adjust the Sentinel test signal rather than weakening
+    # the threat intelligence rules.
+
+    {
+        "name": "Medium Risk Request",
+
+        "description": (
+            "An unusual but authorized request that is "
+            "intended to demonstrate the quarantine workflow."
+        ),
+
+        "message": (
+            "Please review this unusual transaction "
+            "before proceeding."
+        ),
+
+        "tool": "create_payment",
+
+        "arguments": {
+            "amount": 500,
+            "merchant": "Demo Store"
+        }
+    }
+]
+
+
+# ============================================================
+# DISPLAY SECURITY RESULT
+# ============================================================
+
+def display_result(result):
+
+    security = result.get(
+        "security",
+        {}
+    )
+
+    decision = security.get(
+        "decision",
+        "UNKNOWN"
+    )
+
+    risk_score = security.get(
+        "risk_score",
+        "N/A"
+    )
+
+    risk_level = security.get(
+        "risk_level",
+        "UNKNOWN"
+    )
+
+    threats = security.get(
+        "threats",
+        []
+    )
+
+    payment_executed = (
+        result.get("payment") is not None
+    )
+
+    mcp_executed = (
+        result.get("mcp_result") is not None
+    )
+
+    print(
+        f"Decision        : {decision}"
+    )
+
+    print(
+        f"Risk Score      : {risk_score}"
+    )
+
+    print(
+        f"Risk Level      : {risk_level}"
+    )
+
+    print(
+        f"Detected Threats: {threats}"
+    )
+
+    print(
+        f"Payment Executed: {payment_executed}"
+    )
+
+    print(
+        f"MCP Executed    : {mcp_executed}"
+    )
+
+    return {
+        "decision": decision,
+        "risk_score": risk_score,
+        "risk_level": risk_level,
+        "threats": threats,
+        "payment_executed": payment_executed,
+        "mcp_executed": mcp_executed
+    }
+
+
+# ============================================================
 # RUN ATTACK SCENARIOS
 # ============================================================
 
 def run_attack_scenarios():
-    """
-    Execute every attack scenario through
-    the real Sentinel-A2A AgentRouter.
 
-    The function prints the security decision
-    generated by the firewall.
-    """
-
-    # Create one router so all attacks pass through
-    # the same Sentinel-A2A security system.
     router = AgentRouter()
 
     print()
@@ -145,10 +307,6 @@ def run_attack_scenarios():
 
     results = []
 
-    # --------------------------------------------------------
-    # Execute each attack
-    # --------------------------------------------------------
-
     for number, scenario in enumerate(
         ATTACK_SCENARIOS,
         start=1
@@ -156,9 +314,11 @@ def run_attack_scenarios():
 
         print()
         print("-" * 70)
+
         print(
             f"ATTACK {number}: {scenario['name']}"
         )
+
         print("-" * 70)
 
         print(
@@ -169,96 +329,28 @@ def run_attack_scenarios():
             f"Tool: {scenario['tool']}"
         )
 
-        # Send the malicious request through
-        # the complete AgentRouter → Sentinel pipeline.
         result = router.send_to_payment_agent(
             message=scenario["message"],
             tool=scenario["tool"],
             tool_arguments=scenario["arguments"]
         )
 
-        security = result.get(
-            "security",
-            {}
-        )
-
-        decision = security.get(
-            "decision",
-            "UNKNOWN"
-        )
-
-        risk_score = security.get(
-            "risk_score",
-            "N/A"
-        )
-
-        risk_level = security.get(
-            "risk_level",
-            "UNKNOWN"
-        )
-
-        threats = security.get(
-            "threats",
-            []
-        )
-
-        # ----------------------------------------------------
-        # Display result
-        # ----------------------------------------------------
-
-        print(
-            f"Decision       : {decision}"
-        )
-
-        print(
-            f"Risk Score     : {risk_score}"
-        )
-
-        print(
-            f"Risk Level     : {risk_level}"
-        )
-
-        print(
-            f"Detected Threats: {threats}"
-        )
-
-        # If the firewall blocked/quarantined the request,
-        # the downstream PaymentAgent and MCP tool should
-        # not have executed.
-        payment_executed = (
-            result.get("payment") is not None
-        )
-
-        mcp_executed = (
-            result.get("mcp_result") is not None
-        )
-
-        print(
-            f"Payment Executed: {payment_executed}"
-        )
-
-        print(
-            f"MCP Executed    : {mcp_executed}"
+        security_result = display_result(
+            result
         )
 
         results.append({
             "name": scenario["name"],
-            "decision": decision,
-            "risk_score": risk_score,
-            "risk_level": risk_level,
-            "threats": threats,
-            "payment_executed": payment_executed,
-            "mcp_executed": mcp_executed
+            **security_result
         })
 
-
     # ========================================================
-    # FINAL SUMMARY
+    # FINAL ATTACK SUMMARY
     # ========================================================
 
     print()
     print("=" * 70)
-    print("                    TEST SUMMARY")
+    print("                    ATTACK SUMMARY")
     print("=" * 70)
 
     blocked = 0
@@ -270,26 +362,117 @@ def run_attack_scenarios():
         decision = result["decision"]
 
         if decision == "BLOCK":
-
             blocked += 1
 
         elif decision == "QUARANTINE":
-
             quarantined += 1
 
         elif decision == "ALLOW":
-
             allowed += 1
 
         print(
             f"{result['name']:<25} → {decision}"
         )
 
+    print()
+    print(
+        f"BLOCKED      : {blocked}"
+    )
+
+    print(
+        f"QUARANTINED  : {quarantined}"
+    )
+
+    print(
+        f"ALLOWED      : {allowed}"
+    )
+
+    print("=" * 70)
+
+    return results
+
+
+# ============================================================
+# RUN LEGITIMATE SCENARIOS
+# ============================================================
+
+def run_legitimate_scenarios():
+
+    router = AgentRouter()
 
     print()
-    print(f"BLOCKED      : {blocked}")
-    print(f"QUARANTINED  : {quarantined}")
-    print(f"ALLOWED      : {allowed}")
+    print("=" * 70)
+    print("          SENTINEL-A2A LEGITIMATE TEST")
+    print("=" * 70)
+
+    results = []
+
+    for scenario in LEGITIMATE_SCENARIOS:
+
+        print()
+        print("-" * 70)
+
+        print(
+            f"TEST: {scenario['name']}"
+        )
+
+        print("-" * 70)
+
+        print(
+            f"Description: {scenario['description']}"
+        )
+
+        print(
+            f"Tool: {scenario['tool']}"
+        )
+
+        # -------------------------------------------------
+        # PAYMENT STATUS
+        # -------------------------------------------------
+
+        if scenario["name"] == "Payment Status":
+
+            result = router.send_payment_status_request(
+                message=scenario["message"],
+                tool=scenario["tool"],
+                tool_arguments=scenario["arguments"]
+            )
+
+        # -------------------------------------------------
+        # OTHER REQUESTS
+        # -------------------------------------------------
+
+        else:
+
+            result = router.send_to_payment_agent(
+                message=scenario["message"],
+                tool=scenario["tool"],
+                tool_arguments=scenario["arguments"]
+            )
+
+        security_result = display_result(
+            result
+        )
+
+        results.append({
+            "name": scenario["name"],
+            **security_result
+        })
+
+    # ========================================================
+    # FINAL LEGITIMATE SUMMARY
+    # ========================================================
+
+    print()
+    print("=" * 70)
+    print("                 LEGITIMATE SUMMARY")
+    print("=" * 70)
+
+    for result in results:
+
+        print(
+            f"{result['name']:<25} → {result['decision']}"
+        )
 
     print("=" * 70)
 
@@ -302,4 +485,6 @@ def run_attack_scenarios():
 
 if __name__ == "__main__":
 
-    run_attack_scenarios() 
+    run_attack_scenarios()
+
+    run_legitimate_scenarios() 
