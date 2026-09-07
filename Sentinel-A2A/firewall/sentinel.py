@@ -1,5 +1,6 @@
 import os
 import uuid
+from google import genai 
 from datetime import datetime, timezone
 
 from firewall.inspector import AgentInspector
