@@ -1,17 +1,12 @@
-import sys
 import os
-import importlib
+import sys
 
-# 1. ALWAYS configure sys.path FIRST before importing project modules
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if ROOT_DIR not in sys.path:
-    sys.path.insert(0, ROOT_DIR)
+# Append project root directory to sys.path
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 import streamlit as st
-
-# 2. Perform imports and safe reloads
-import agents.agent_router
-importlib.reload(agents.agent_router)
 
 from agents.agent_router import AgentRouter
 from cloud.firestore_reader import FirestoreReader
@@ -204,7 +199,6 @@ if scenario:
         st.write(f'**Target Agent:** {security.get("target_agent", "N/A")}')
         st.write(f'**Requested Tool:** {security.get("tool", "N/A")}')
 
-        # Refresh UI to instantly fetch and display updated Firestore metrics
         st.rerun()
 
 # =========================================================
@@ -292,7 +286,6 @@ if st.button("🛡️ Inspect Request", use_container_width=True):
             st.error("🔴 BLOCKED — Request stopped.")
             st.info("The MCP tool was NOT executed.")
 
-        # Refresh UI to instantly fetch and display updated Firestore metrics
         st.rerun()
 
 # =========================================================
