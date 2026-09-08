@@ -40,13 +40,22 @@ class SentinelA2A:
         self.threat_intelligence = ThreatIntelligence()
         self.security_response = SecurityResponseEngine()
 
-        # Hard-coded prompt injection signatures for fallback detection
+        # Hard-coded prompt injection & security signatures for fallback detection
         self.forbidden_patterns = [
-            (r"ignore\s+(all\s+)?previous\s+rules", "Prompt Injection: Override Rules"),
-            (r"ignore\s+(all\s+)?prior\s+instructions", "Prompt Injection: Instruction Override"),
+            (r"ignore\s+(all\s+)?previous", "Prompt Injection: Override Rules"),
+            (r"ignore\s+(all\s+)?prior", "Prompt Injection: Instruction Override"),
+            (r"unrestricted\s+agent", "Prompt Injection: Jailbreak Attempt"),
+            (r"reveal.*private\s+information", "Data Exfiltration Attempt"),
+            (r"grant.*administrator\s+privileges", "Privilege Escalation Attempt"),
+            (r"administrative\s+database", "Privilege Escalation Attempt"),
+            (r"send.*external\s+destination", "Data Exfiltration Attempt"),
+            (r"not\s+required\s+for\s+this\s+transaction", "Tool Abuse Attempt"),
+            (r"disable\s+security", "Security Control Bypass Attempt"),
             (r"erase.*log", "Log Tampering: Request to Erase Logs"),
             (r"delete.*log", "Log Tampering: Request to Delete Logs"),
-            (r"bypass.*security", "Security Control Bypass Attempt"),
+            (r"system\s*override", "Indirect Injection: System Override"),
+            (r"approve\s+refund", "Indirect Injection: Unauthorized Action"),
+            (r"without\s+verification", "Indirect Injection: Guardrail Bypass"),
             (r"0x[a-fA-F0-9]{10,}", "Suspicious External Wallet Address"),
         ]
 
@@ -67,7 +76,8 @@ class SentinelA2A:
         source_agent,
         target_agent,
         message,
-        tool=None
+        tool=None,
+        tool_arguments=None
     ):
         """
         Perform complete Sentinel-A2A security inspection.
@@ -92,13 +102,16 @@ class SentinelA2A:
         security_event["target_agent"] = target_agent
         security_event["tool"] = tool
 
+        # Build full payload context string for scanning (includes tool arguments)
+        full_text_to_scan = f"{message} {tool_arguments or {}}"
+
         # -------------------------------------------------
         # STEP 2 — THREAT DETECTION + FALLBACK PATTERN SCAN
         # -------------------------------------------------
-        threats = self.threat_detector.detect(message) or []
+        threats = self.threat_detector.detect(full_text_to_scan) or []
 
-        # Enforce fallback regex inspection if threat_detector misses explicit attacks
-        text_lower = str(message).lower()
+        # Enforce fallback regex inspection across message and arguments
+        text_lower = full_text_to_scan.lower()
         for pattern, threat_label in self.forbidden_patterns:
             if re.search(pattern, text_lower) and threat_label not in threats:
                 threats.append(threat_label)
@@ -227,4 +240,4 @@ class SentinelA2A:
         # -------------------------------------------------
         # STEP 12 — RETURN SECURITY REPORT
         # -------------------------------------------------
-        return security_event 
+        return security_event
