@@ -22,6 +22,56 @@ st.set_page_config(
     layout="wide"
 )
 
+st.markdown(
+    """
+    <style>
+        [data-testid="stSidebar"] {
+            background: linear-gradient(180deg, #f5f5f5 0%, #ececec 100%);
+            border-right: 1px solid rgba(0,0,0,0.08);
+        }
+        [data-testid="stSidebar"] * {
+            color: #0f172a !important;
+            font-weight: 800 !important;
+        }
+        [data-testid="stSidebar"] h1,
+        [data-testid="stSidebar"] h2,
+        [data-testid="stSidebar"] h3,
+        [data-testid="stSidebar"] h4,
+        [data-testid="stSidebar"] h5,
+        [data-testid="stSidebar"] h6 {
+            color: #020617 !important;
+            font-weight: 900 !important;
+            letter-spacing: 0.01em;
+        }
+        [data-testid="stSidebar"] p,
+        [data-testid="stSidebar"] div,
+        [data-testid="stSidebar"] label,
+        [data-testid="stSidebar"] .stMarkdownContainer,
+        [data-testid="stSidebar"] .stButton > button {
+            color: #111827 !important;
+            font-weight: 800 !important;
+        }
+        [data-testid="stSidebar"] .stButton > button {
+            background: rgba(15, 23, 42, 0.06);
+            border: 1px solid rgba(15, 23, 42, 0.12);
+            border-radius: 8px;
+            padding: 0.35rem 0.7rem;
+        }
+        [data-testid="stSidebar"] > div:first-child {
+            padding-top: 1rem;
+        }
+        [data-testid="stSidebar"] .stMarkdownContainer {
+            background: rgba(15, 23, 42, 0.04);
+            border-radius: 10px;
+            padding: 0.7rem 0.75rem;
+            margin-top: 0.5rem;
+            border: 1px solid rgba(15, 23, 42, 0.08);
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # Initialize Persistent Session State Arrays
 if "local_events" not in st.session_state:
     st.session_state["local_events"] = []
@@ -121,7 +171,7 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### About")
     st.write(
-        "Imagine two self-driving cars, each controlled by its own independent AI agent, approaching the same intersection. The two AI agents communicate with each other to coordinate their movements, but their communication is routed through Sentinel-A2A, which acts as an independent security and governance layer. Sentinel analyzes their interactions, verifies authorization and security policies, detects malicious, abnormal, or conflicting behavior, evaluates the risk of each request, and monitors the agents’ behavioral trust. For example, if Car A incorrectly interprets Car B’s position and sends an unsafe instruction to proceed through the intersection, Sentinel can identify the interaction as high-risk and block or quarantine the request before it reaches the other agent or vehicle-control system. Similarly, if an agent repeatedly generates suspicious requests, Sentinel can identify the behavioral anomaly and reduce its trust score. Through this process, Sentinel-A2A acts as a digital traffic controller and security checkpoint for communication between autonomous AI agents, helping prevent unsafe AI decisions from affecting the physical world.\n\nLooking ahead, Sentinel-A2A could evolve into a broader AI safety infrastructure for autonomous vehicles and other intelligent machines. In the event of a serious accident, it could integrate with authorized emergency-response systems to automatically share verified incident information—such as location, severity, and vehicles involved—with ambulance and emergency services. Similarly, repeated or critical violations could be reported through authorized integrations with transport and government authorities, enabling regulatory monitoring and response. These capabilities could eventually extend beyond vehicles to robots, drones, industrial machines, smart-city infrastructure, and other systems where independent AI agents need to interact safely.\n\nJust as roads need traffic rules and vehicles need safety systems, a world of autonomous AI agents needs a trusted layer that governs how those agents interact. Sentinel-A2A is our vision for that layer."
+        "Imagine two self-driving cars, each controlled by its own independent AI agent, approaching the same intersection. The two AI agents communicate with each other to coordinate their movements, but their communication is routed through Sentinel-A2A, which acts as an independent security and governance layer. Sentinel analyzes their interactions, verifies authorization and security policies, detects malicious, abnormal, or conflicting behavior, evaluates the risk of each request, and monitors the agents’ behavioral trust. For example, if Car A incorrectly interprets Car B’s position and sends an unsafe instruction to proceed through the intersection, Sentinel can identify the interaction as high-risk and block or quarantine the request before it reaches the other agent or vehicle-control system. Similarly, if an agent repeatedly generates suspicious requests, Sentinel can identify the behavioral anomaly and reduce its trust score. Through this process, Sentinel-A2A acts as a digital traffic controller and security checkpoint for communication between autonomous AI agents, helping prevent unsafe AI decisions from affecting the physical world.\n\nSentinel-A2A addresses the single biggest security blind spot in agentic AI: traditional firewalls protect web traffic, and traditional LLM guardrails protect user prompts, but neither safeguards machine-to-machine Agent-to-Agent (A2A) communication or MCP tool execution. Sentinel-A2A is among the world’s first dedicated runtime firewalls specifically engineered for this layer — stopping indirect prompt injection and unauthorized financial execution before they touch real systems.\n\nLooking ahead, Sentinel-A2A could evolve into a broader AI safety infrastructure for autonomous vehicles and other intelligent machines. In the event of a serious accident, it could integrate with authorized emergency-response systems to automatically share verified incident information—such as location, severity, and vehicles involved—with ambulance and emergency services. Similarly, repeated or critical violations could be reported through authorized integrations with transport and government authorities, enabling regulatory monitoring and response. These capabilities could eventually extend beyond vehicles to robots, drones, industrial machines, smart-city infrastructure, and other systems where independent AI agents need to interact safely.\n\nJust as roads need traffic rules and vehicles need safety systems, a world of autonomous AI agents needs a trusted layer that governs how those agents interact. Sentinel-A2A is our vision for that layer."
     )
 
     st.markdown("---")
