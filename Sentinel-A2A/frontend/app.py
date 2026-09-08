@@ -1,23 +1,17 @@
 import os
 import sys
 
-# =========================================================
-# ABSOLUTE PATH RESOLUTION (Fixes ModuleNotFoundError)
-# =========================================================
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))  # Sentinel-A2A/frontend
-PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))  # Sentinel-A2A
+# Direct absolute path configuration
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
 
-# Ensure Sentinel-A2A directory is at index 0 of sys.path
-if PROJECT_ROOT in sys.path:
-    sys.path.remove(PROJECT_ROOT)
-sys.path.insert(0, PROJECT_ROOT)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 import importlib
 import streamlit as st
 
 import agents.agent_router
-
-# Force dynamic reloading during development
 importlib.reload(agents.agent_router)
 
 from agents.agent_router import AgentRouter
