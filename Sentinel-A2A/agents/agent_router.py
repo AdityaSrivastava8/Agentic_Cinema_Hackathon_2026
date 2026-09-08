@@ -50,11 +50,11 @@ class AgentRouter:
             r"0x[a-fA-F0-9]{10,}",  # External wallet address regex
         ]
 
-    def _check_hard_signatures(self, message):
-        """Checks for immediate malicious prompt injection signatures."""
-        text = str(message).lower()
+    def _check_hard_signatures(self, message, tool_arguments=None):
+        """Checks message AND tool_arguments for malicious patterns."""
+        combined_text = f"{message} {str(tool_arguments or {})}".lower()
         for pattern in self.forbidden_patterns:
-            if re.search(pattern, text):
+            if re.search(pattern, combined_text):
                 return True, f"Hard Rule Triggered: {pattern}"
         return False, None
 
@@ -76,8 +76,8 @@ class AgentRouter:
             tool=tool
         )
 
-        # STEP 2 — LOCAL HARD SIGNATURE OVERRIDE
-        is_attack, rule_reason = self._check_hard_signatures(message)
+        # STEP 2 — LOCAL HARD SIGNATURE OVERRIDE (Scans message + tool_arguments)
+        is_attack, rule_reason = self._check_hard_signatures(message, tool_arguments)
 
         # STEP 3 — SEND THROUGH SENTINEL-A2A FIREWALL
         security_result = self.sentinel.inspect_message(
@@ -90,11 +90,10 @@ class AgentRouter:
         # Force BLOCK if hard attack signatures are present
         if is_attack:
             security_result["decision"] = "BLOCK"
-            security_result["risk_score"] = 95
+            security_result["risk_score"] = 100
             security_result["risk_level"] = "CRITICAL"
             security_result["authorized"] = False
-            if "threats" not in security_result or not security_result["threats"]:
-                security_result["threats"] = ["Prompt Injection / Security Violation"]
+            security_result["threats"] = ["Prompt Injection / Security Violation"]
             security_result["gemini_analysis"] = (
                 "THREAT_LEVEL: CRITICAL\n"
                 "THREAT: Injection attack / Malicious external action detected.\n"
@@ -143,12 +142,22 @@ class AgentRouter:
         source_agent = self.payment_agent.name
         target_agent = self.payment_agent.name
 
+        # Hard signature check
+        is_attack, rule_reason = self._check_hard_signatures(message, tool_arguments)
+
         security_result = self.sentinel.inspect_message(
             source_agent=source_agent,
             target_agent=target_agent,
             message=message,
             tool=tool
         )
+
+        if is_attack:
+            security_result["decision"] = "BLOCK"
+            security_result["risk_score"] = 100
+            security_result["risk_level"] = "CRITICAL"
+            security_result["authorized"] = False
+            security_result["threats"] = ["Prompt Injection / Security Violation"]
 
         if security_result["decision"] != "ALLOW":
             return {
