@@ -203,6 +203,9 @@ if scenario:
         st.write(f'**Target Agent:** {security.get("target_agent", "N/A")}')
         st.write(f'**Requested Tool:** {security.get("tool", "N/A")}')
 
+        # Refresh Streamlit so analytics and history display the updated logs
+        st.rerun()
+
 # =========================================================
 # LIVE REQUEST INSPECTION
 # =========================================================
@@ -287,6 +290,9 @@ if st.button("🛡️ Inspect Request", use_container_width=True):
         else:
             st.error("🔴 BLOCKED — Request stopped.")
             st.info("The MCP tool was NOT executed.")
+
+        # Refresh Streamlit so analytics and history display the updated logs
+        st.rerun()
 
 # =========================================================
 # SECURITY EVENT HISTORY
