@@ -1,13 +1,16 @@
 import re
-from .shopping_agent import ShoppingAgent
-from .payment_agent import PaymentAgent
-from ..firewall.sentinel import SentinelA2A
-from ..mcp.mcp_gateway import MCPGateway
+from agents.shopping_agent import ShoppingAgent
+from agents.payment_agent import PaymentAgent
+from firewall.sentinel import SentinelA2A
+from mcp.mcp_gateway import MCPGateway
 
 try:
-    from ..cloud.firestore_writer import FirestoreWriter
-except ImportError:
     from cloud.firestore_writer import FirestoreWriter
+except ImportError:
+    try:
+        from ..cloud.firestore_writer import FirestoreWriter
+    except ImportError:
+        FirestoreWriter = None
 
 
 class AgentRouter:
@@ -27,11 +30,12 @@ class AgentRouter:
         self.mcp_gateway = MCPGateway()
 
         # Create the Firestore writer.
-        try:
-            self.writer = FirestoreWriter()
-        except Exception as e:
-            self.writer = None
-            print(f"FirestoreWriter initialization failed: {e}")
+        self.writer = None
+        if FirestoreWriter is not None:
+            try:
+                self.writer = FirestoreWriter()
+            except Exception as e:
+                print(f"FirestoreWriter initialization failed: {e}")
 
         # Comprehensive hard-signature rules (Direct & Indirect Prompt Injections)
         self.forbidden_patterns = [
