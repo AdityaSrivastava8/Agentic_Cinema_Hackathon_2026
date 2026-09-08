@@ -31,22 +31,43 @@ st.set_page_config(
 def get_agent_router():
     return AgentRouter()
 
-# Dynamic fetching without hard-locking on stale state
+# Cache Firestore data fetching with a 2-second TTL for live updates
+@st.cache_data(ttl=2)
 def fetch_firestore_events():
     try:
         reader = FirestoreReader()
-        recent_events = reader.get_recent_events(limit=100)
-        total_count = reader.get_event_count()
-        blocked_events = [e for e in recent_events if isinstance(e, dict) and e.get("decision") == "BLOCK"]
         
+        # Check if reader successfully connected to a Firestore DB instance
+        if reader.db is None or reader.collection is None:
+            return {
+                "available": False,
+                "error": "Firestore client not initialized",
+                "total_count": 0,
+                "recent_events": [],
+                "blocked_events": []
+            }
+
+        recent_events = reader.get_recent_events(limit=100) or []
+        
+        # Get count safely
+        try:
+            total_count = reader.get_event_count()
+        except AttributeError:
+            total_count = len(recent_events)
+
+        # Get blocked events safely
+        try:
+            blocked_events = reader.get_blocked_events(limit=100)
+        except AttributeError:
+            blocked_events = [e for e in recent_events if isinstance(e, dict) and e.get("decision") == "BLOCK"]
+
         return {
-            "available": True if recent_events or total_count > 0 or reader.collection is not None else False,
+            "available": True,
             "total_count": max(total_count, len(recent_events)),
             "recent_events": recent_events,
             "blocked_events": blocked_events
         }
     except Exception as e:
-        print(f"[app.py] Error fetching events: {e}")
         return {
             "available": False,
             "error": str(e),
@@ -59,6 +80,7 @@ router = get_agent_router()
 fs_data = fetch_firestore_events()
 firestore_available = fs_data["available"]
 
+# Helper to clear cache when a new event occurs
 def refresh_security_data():
     st.cache_data.clear()
 
@@ -267,20 +289,20 @@ if st.button("🛡️ Inspect Request", use_container_width=True):
 
 if "inspection_result" in st.session_state:
     result = st.session_state["inspection_result"]
-    security = result["security"]
+    security = result["inspection_result"] if "inspection_result" in result else result.get("security", {})
 
     st.divider()
     st.subheader("🛡️ Sentinel-A2A Analysis")
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("Risk Score", f'{security["risk_score"]}/100')
+        st.metric("Risk Score", f'{security.get("risk_score", 0)}/100')
     with col2:
-        st.metric("Risk Level", security["risk_level"])
+        st.metric("Risk Level", security.get("risk_level", "LOW"))
     with col3:
-        st.metric("Authorization", "ALLOWED" if security["authorized"] else "DENIED")
+        st.metric("Authorization", "ALLOWED" if security.get("authorized", True) else "DENIED")
     with col4:
-        st.metric("Decision", security["decision"])
+        st.metric("Decision", security.get("decision", "ALLOW"))
 
     st.caption(f'Event ID: {security.get("event_id", "N/A")}')
     st.caption(f'Timestamp: {security.get("timestamp", "N/A")}')
@@ -296,7 +318,7 @@ if "inspection_result" in st.session_state:
         st.subheader("🧠 Gemini Security Intelligence")
         st.code(security["gemini_analysis"], language="text")
 
-    if security["decision"] == "ALLOW":
+    if security.get("decision") == "ALLOW":
         st.success("🟢 ALLOWED — Request passed security checks.")
         if result.get("payment"):
             st.subheader("💳 Payment Agent Response")
@@ -304,7 +326,7 @@ if "inspection_result" in st.session_state:
         if result.get("mcp_result"):
             st.subheader("🔧 MCP Tool Result")
             st.json(result["mcp_result"])
-    elif security["decision"] == "QUARANTINE":
+    elif security.get("decision") == "QUARANTINE":
         st.warning("🟡 QUARANTINED — Requires additional verification.")
         st.info("The MCP tool was NOT executed.")
     else:
