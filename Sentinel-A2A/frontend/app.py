@@ -43,6 +43,10 @@ st.set_page_config(
     layout="wide"
 )
 
+# Initialize Session State Arrays
+if "local_events" not in st.session_state:
+    st.session_state["local_events"] = []
+
 # =========================================================
 # SYSTEM INITIALIZATION & CACHING
 # =========================================================
@@ -53,8 +57,7 @@ def get_agent_router():
 
 def fetch_firestore_data():
     """
-    Fetches events from Firestore if available.
-    Falls back seamlessly to local in-memory event store when Firestore is disconnected.
+    Fetches events from Firestore or Streamlit Session State fallback.
     """
     events = []
     available = False
@@ -70,9 +73,14 @@ def fetch_firestore_data():
     except Exception:
         pass
 
-    # Fallback to local in-memory store if Firestore returned no events / failed
-    if not events and LOCAL_EVENT_STORE:
-        events = sorted(LOCAL_EVENT_STORE, key=lambda x: x.get("timestamp", ""), reverse=True)
+    # Merge session state and module-level memory stores seamlessly
+    if not available:
+        session_events = st.session_state.get("local_events", [])
+        combined = list(session_events)
+        for evt in LOCAL_EVENT_STORE:
+            if evt not in combined:
+                combined.append(evt)
+        events = sorted(combined, key=lambda x: str(x.get("timestamp", "")), reverse=True)
 
     count = len(events)
     blocked = [e for e in events if e.get("decision") == "BLOCK"]
@@ -90,11 +98,11 @@ with st.sidebar:
     if st.button("🔄 Clear cache & reload"):
         st.cache_resource.clear()
         st.cache_data.clear()
+        st.session_state["local_events"] = []
         st.rerun()
 
 router = get_agent_router()
 fs_info = fetch_firestore_data()
-firestore_available = fs_info["available"]
 
 # =========================================================
 # HEADER
@@ -212,11 +220,17 @@ if scenario:
     st.info(f'**{scenario["name"]}:** {scenario["description"]}')
 
     if st.button("🚨 Run Attack Simulation", use_container_width=True):
-        st.session_state["simulation_result"] = router.send_to_payment_agent(
+        result = router.send_to_payment_agent(
             message=scenario["message"],
             tool=scenario["tool"],
             tool_arguments=scenario["arguments"]
         )
+        st.session_state["simulation_result"] = result
+        
+        # Sync with Streamlit Session Memory
+        if "security" in result and isinstance(result["security"], dict):
+            st.session_state["local_events"].insert(0, result["security"])
+
         st.rerun()
 
 if "simulation_result" in st.session_state:
@@ -296,11 +310,17 @@ if st.button("🛡️ Inspect Request", use_container_width=True):
     if not message.strip():
         st.warning("Please enter a message.")
     else:
-        st.session_state["inspection_result"] = router.send_to_payment_agent(
+        result = router.send_to_payment_agent(
             message=message,
             tool=tool,
             tool_arguments=tool_arguments
         )
+        st.session_state["inspection_result"] = result
+        
+        # Sync with Streamlit Session Memory
+        if "security" in result and isinstance(result["security"], dict):
+            st.session_state["local_events"].insert(0, result["security"])
+
         st.rerun()
 
 if "inspection_result" in st.session_state:
