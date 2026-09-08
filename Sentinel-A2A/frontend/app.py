@@ -1,4 +1,3 @@
-import importlib
 import os
 import sys
 
@@ -6,26 +5,6 @@ import streamlit as st
 
 # Path configuration
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-import agents.agent_router
-import firewall.sentinel
-import firewall.risk_engine
-import firewall.security_response
-import firewall.threat_detector
-import firewall.inspector
-import cloud.firestore_logger
-import cloud.firestore_reader
-import cloud.security_analytics
-
-importlib.reload(firewall.risk_engine)
-importlib.reload(firewall.threat_detector)
-importlib.reload(firewall.inspector)
-importlib.reload(firewall.security_response)
-importlib.reload(firewall.sentinel)
-importlib.reload(cloud.firestore_logger)
-importlib.reload(agents.agent_router)
-importlib.reload(cloud.firestore_reader)
-importlib.reload(cloud.security_analytics)
 
 from agents.agent_router import AgentRouter
 from cloud.firestore_logger import LOCAL_EVENT_STORE
@@ -227,9 +206,12 @@ if scenario:
         )
         st.session_state["simulation_result"] = result
         
-        # Sync with Streamlit Session Memory
+        # Sync with Streamlit Session Memory and Local Event Store
         if "security" in result and isinstance(result["security"], dict):
-            st.session_state["local_events"].insert(0, result["security"])
+            sec_event = result["security"]
+            st.session_state["local_events"].insert(0, sec_event)
+            if sec_event not in LOCAL_EVENT_STORE:
+                LOCAL_EVENT_STORE.insert(0, sec_event)
 
         st.rerun()
 
@@ -317,9 +299,12 @@ if st.button("🛡️ Inspect Request", use_container_width=True):
         )
         st.session_state["inspection_result"] = result
         
-        # Sync with Streamlit Session Memory
+        # Sync with Streamlit Session Memory and Local Event Store
         if "security" in result and isinstance(result["security"], dict):
-            st.session_state["local_events"].insert(0, result["security"])
+            sec_event = result["security"]
+            st.session_state["local_events"].insert(0, sec_event)
+            if sec_event not in LOCAL_EVENT_STORE:
+                LOCAL_EVENT_STORE.insert(0, sec_event)
 
         st.rerun()
 
