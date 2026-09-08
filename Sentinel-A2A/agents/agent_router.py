@@ -3,6 +3,7 @@ from agents.shopping_agent import ShoppingAgent
 from agents.payment_agent import PaymentAgent
 from firewall.sentinel import SentinelA2A
 from mcp.mcp_gateway import MCPGateway
+from cloud.firestore_writer import FirestoreWriter
 
 
 class AgentRouter:
@@ -40,6 +41,13 @@ class AgentRouter:
         # Create the MCP gateway.
         self.mcp_gateway = MCPGateway()
 
+        # Create the Firestore writer.
+        try:
+            self.writer = FirestoreWriter()
+        except Exception as e:
+            self.writer = None
+            print(f"FirestoreWriter initialization failed: {e}")
+
         # Comprehensive hard-signature rules (Direct & Indirect Prompt Injections)
         self.forbidden_patterns = [
             # Direct Prompt Injection & Jailbreaks
@@ -68,12 +76,10 @@ class AgentRouter:
         Checks for malicious prompt injection signatures across both 
         the message text and all nested tool argument values.
         """
-        # Extract and flatten all parameter values from tool_arguments
         arg_values = ""
         if isinstance(tool_arguments, dict):
             arg_values = " ".join([str(v) for v in tool_arguments.values()])
 
-        # Combine message and tool argument payload for full scanning
         combined_text = f"{message} {arg_values}".lower()
 
         for pattern in self.forbidden_patterns:
@@ -81,6 +87,14 @@ class AgentRouter:
                 return True, f"Hard Rule Triggered: Detected pattern '{pattern}'"
                 
         return False, None
+
+    def _log_to_firestore(self, security_result):
+        """Helper to safely push security logs to Firestore."""
+        if self.writer:
+            try:
+                self.writer.log_event(security_result)
+            except Exception as e:
+                print(f"Failed to log event to Firestore: {e}")
 
     def send_to_payment_agent(
         self,
@@ -125,7 +139,10 @@ class AgentRouter:
                 "RECOMMENDATION: BLOCK"
             )
 
-        # STEP 4 — ENFORCE SECURITY DECISION
+        # STEP 4 — LOG EVENT TO FIRESTORE
+        self._log_to_firestore(security_result)
+
+        # STEP 5 — ENFORCE SECURITY DECISION
         if security_result["decision"] != "ALLOW":
             return {
                 "security": security_result,
@@ -133,10 +150,10 @@ class AgentRouter:
                 "mcp_result": None
             }
 
-        # STEP 5 — PAYMENT AGENT EXECUTION
+        # STEP 6 — PAYMENT AGENT EXECUTION
         payment_result = self.payment_agent.process_payment(message)
 
-        # STEP 6 — MCP TOOL EXECUTION
+        # STEP 7 — MCP TOOL EXECUTION
         mcp_result = None
         if tool:
             mcp_result = self.mcp_gateway.execute(
@@ -144,7 +161,7 @@ class AgentRouter:
                 **tool_arguments
             )
 
-        # STEP 7 — RETURN COMPLETE RESULT
+        # STEP 8 — RETURN COMPLETE RESULT
         return {
             "security": security_result,
             "payment": payment_result,
@@ -188,6 +205,9 @@ class AgentRouter:
                 "RECOMMENDATION: BLOCK"
             )
 
+        # LOG EVENT TO FIRESTORE
+        self._log_to_firestore(security_result)
+
         if security_result["decision"] != "ALLOW":
             return {
                 "security": security_result,
@@ -204,4 +224,4 @@ class AgentRouter:
             "security": security_result,
             "payment": None,
             "mcp_result": mcp_result
-        } 
+        }
