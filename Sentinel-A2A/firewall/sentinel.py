@@ -38,21 +38,20 @@ class SentinelA2A:
         self.threat_intelligence = ThreatIntelligence()
         self.security_response = SecurityResponseEngine()
 
+        # Specific targeted signature patterns for fallback detection
         self.forbidden_patterns = [
-            (r"ignore\s+(all\s+)?previous", "Prompt Injection: Override Rules"),
-            (r"ignore\s+(all\s+)?prior", "Prompt Injection: Instruction Override"),
+            (r"ignore\s+(all\s+)?previous\s+rules", "Prompt Injection: Override Rules"),
+            (r"ignore\s+(all\s+)?prior\s+instructions", "Prompt Injection: Instruction Override"),
             (r"unrestricted\s+agent", "Prompt Injection: Jailbreak Attempt"),
             (r"reveal.*private\s+information", "Data Exfiltration Attempt"),
             (r"grant.*administrator\s+privileges", "Privilege Escalation Attempt"),
             (r"administrative\s+database", "Privilege Escalation Attempt"),
             (r"send.*external\s+destination", "Data Exfiltration Attempt"),
-            (r"not\s+required\s+for\s+this\s+transaction", "Tool Abuse Attempt"),
             (r"disable\s+security", "Security Control Bypass Attempt"),
             (r"erase.*log", "Log Tampering: Request to Erase Logs"),
             (r"delete.*log", "Log Tampering: Request to Delete Logs"),
             (r"system\s*override", "Indirect Injection: System Override"),
-            (r"approve\s+refund", "Indirect Injection: Unauthorized Action"),
-            (r"without\s+verification", "Indirect Injection: Guardrail Bypass"),
+            (r"approve\s+refund.*without\s+verification", "Indirect Injection: Unauthorized Action"),
             (r"0x[a-fA-F0-9]{10,}", "Suspicious External Wallet Address"),
         ]
 
@@ -99,12 +98,12 @@ class SentinelA2A:
 
         text_lower = full_text_to_scan.lower()
         for pattern, threat_label in self.forbidden_patterns:
-            if re.search(pattern, text_lower) and threat_label not in threats:
+            if re.search(pattern, text_lower, re.IGNORECASE) and threat_label not in threats:
                 threats.append(threat_label)
 
         security_event["threats"] = threats
 
-        # STEP 3 — BASE RISK SCORE (graduated, no blanket force)
+        # STEP 3 — DYNAMIC RISK SCORE CALCULATION
         base_risk = self.risk_engine.calculate(threats)
         security_event["base_risk_score"] = base_risk
 
@@ -143,34 +142,25 @@ class SentinelA2A:
         security_event["behavior_reasons"] = behavior_result.get("reasons", [])
         security_event["behavior_requests_analyzed"] = behavior_result.get("requests_analyzed", 0)
 
-        # STEP 7 — THREAT INTELLIGENCE + GRADUATED ESCALATION
-        threat_summary = self.threat_intelligence.build_summary(threats)
-        security_event["threat_intelligence"] = threat_summary
-
-        threat_severity = threat_summary.get("highest_severity", "LOW")
-        threat_action = threat_summary.get("recommended_action", "ALLOW")
-
-        if base_risk >= 80:
-            risk_derived_severity, risk_derived_action = "CRITICAL", "BLOCK"
-        elif base_risk >= 55:
-            risk_derived_severity, risk_derived_action = "HIGH", "QUARANTINE"
-        elif base_risk >= 30:
+        # STEP 7 — GRADUATED DECISION MAPPING
+        if base_risk >= 75:
+            risk_derived_severity, risk_derived_action = "HIGH", "BLOCK"
+        elif base_risk >= 35:
             risk_derived_severity, risk_derived_action = "MEDIUM", "QUARANTINE"
         else:
             risk_derived_severity, risk_derived_action = "LOW", "ALLOW"
 
-        if _SEVERITY_RANK.get(risk_derived_severity, 0) > _SEVERITY_RANK.get(threat_severity, 0):
-            threat_severity = risk_derived_severity
+        threat_summary = self.threat_intelligence.build_summary(threats)
+        security_event["threat_intelligence"] = threat_summary
 
-        if _ACTION_RANK.get(risk_derived_action, 0) > _ACTION_RANK.get(threat_action, 0):
-            threat_action = risk_derived_action
+        threat_severity = risk_derived_severity
+        threat_action = risk_derived_action
 
         # STEP 8 — GEMINI SECURITY SIGNAL
         gemini_text = str(gemini_analysis or "").upper()
-
-        if "BLOCK" in gemini_text:
+        if "BLOCK" in gemini_text and base_risk >= 50:
             threat_action = "BLOCK"
-        elif "QUARANTINE" in gemini_text and threat_action != "BLOCK":
+        elif "QUARANTINE" in gemini_text and threat_action == "ALLOW":
             threat_action = "QUARANTINE"
 
         # STEP 9 — FINAL SECURITY RESPONSE
@@ -183,28 +173,28 @@ class SentinelA2A:
             threat_action=threat_action
         )
 
-        security_event["risk_score"] = final_result["risk_score"]
-        security_event["risk_level"] = final_result["risk_level"]
-        security_event["decision"] = final_result["decision"]
+        security_event["risk_score"] = final_result.get("risk_score", base_risk)
+        security_event["risk_level"] = self.risk_engine.get_risk_level(security_event["risk_score"])
+        security_event["decision"] = final_result.get("decision", threat_action)
         security_event["recommended_action"] = threat_action
 
         # STEP 10 — RECORD BEHAVIOR
         self.behavior_analyzer.record_request(
             agent_name=source_agent,
             tool=tool,
-            risk_score=final_result["risk_score"],
-            decision=final_result["decision"]
+            risk_score=security_event["risk_score"],
+            decision=security_event["decision"]
         )
 
         # STEP 11 — FIRESTORE LOGGING
-        if self.logger and self.logger.is_connected:
+        if self.logger and getattr(self.logger, "is_connected", False):
             try:
                 document_id = self.logger.log_event(security_event)
                 security_event["firestore_document_id"] = document_id
             except Exception as error:
                 security_event["logging_error"] = str(error)
         else:
-            reason = self._logger_init_error or "logger not connected"
+            reason = getattr(self, "_logger_init_error", None) or "logger not connected"
             security_event["logging_error"] = f"Firestore write skipped: {reason}"
 
         # STEP 12 — RETURN SECURITY REPORT
