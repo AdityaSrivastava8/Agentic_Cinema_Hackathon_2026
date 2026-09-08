@@ -28,15 +28,15 @@ st.set_page_config(
 )
 
 # =========================================================
-# SYSTEM INITIALIZATION & CACHING
+# SYSTEM INITIALIZATION & DATA FETCHING
 # =========================================================
 
 @st.cache_resource
 def get_agent_router():
     return AgentRouter()
 
-@st.cache_resource
 def get_firestore_reader():
+    """Uncached function to ensure fresh Firestore data fetches on page updates."""
     try:
         return FirestoreReader()
     except Exception:
@@ -169,39 +169,45 @@ if scenario:
             tool=scenario["tool"],
             tool_arguments=scenario["arguments"]
         )
-        security = result["security"]
+        st.session_state["last_simulation_result"] = result
+        st.rerun()
 
-        st.subheader("🛡️ Sentinel-A2A Response")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Risk Score", f'{security["risk_score"]}/100')
-        with col2:
-            st.metric("Risk Level", security["risk_level"])
-        with col3:
-            st.metric("Decision", security["decision"])
+# Display last attack simulation result from session state
+if "last_simulation_result" in st.session_state:
+    result = st.session_state["last_simulation_result"]
+    security = result["security"]
 
-        if security["decision"] == "BLOCK":
-            st.error("🔴 ATTACK BLOCKED — Request prevented from reaching MCP tool.")
-        elif security["decision"] == "QUARANTINE":
-            st.warning("🟡 ATTACK QUARANTINED — Requires additional verification.")
-        else:
-            st.success("🟢 REQUEST ALLOWED")
+    st.subheader("🛡️ Sentinel-A2A Response")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Risk Score", f'{security["risk_score"]}/100')
+    with col2:
+        st.metric("Risk Level", security["risk_level"])
+    with col3:
+        st.metric("Decision", security["decision"])
 
-        if security.get("threats"):
-            st.subheader("🚨 Detected Threats")
-            for threat in security["threats"]:
-                st.error(f"⚠️ {threat}")
+    if security["decision"] == "BLOCK":
+        st.error("🔴 ATTACK BLOCKED — Request prevented from reaching MCP tool.")
+    elif security["decision"] == "QUARANTINE":
+        st.warning("🟡 ATTACK QUARANTINED — Requires additional verification.")
+    else:
+        st.success("🟢 REQUEST ALLOWED")
 
-        if security.get("gemini_analysis"):
-            st.subheader("🧠 Gemini Security Intelligence")
-            st.code(security["gemini_analysis"], language="text")
+    if security.get("threats"):
+        st.subheader("🚨 Detected Threats")
+        for threat in security["threats"]:
+            st.error(f"⚠️ {threat}")
 
-        st.subheader("📋 Security Event")
-        st.write(f'**Event ID:** {security.get("event_id", "N/A")}')
-        st.write(f'**Timestamp:** {security.get("timestamp", "N/A")}')
-        st.write(f'**Source Agent:** {security.get("source_agent", "N/A")}')
-        st.write(f'**Target Agent:** {security.get("target_agent", "N/A")}')
-        st.write(f'**Requested Tool:** {security.get("tool", "N/A")}')
+    if security.get("gemini_analysis"):
+        st.subheader("🧠 Gemini Security Intelligence")
+        st.code(security["gemini_analysis"], language="text")
+
+    st.subheader("📋 Security Event")
+    st.write(f'**Event ID:** {security.get("event_id", "N/A")}')
+    st.write(f'**Timestamp:** {security.get("timestamp", "N/A")}')
+    st.write(f'**Source Agent:** {security.get("source_agent", "N/A")}')
+    st.write(f'**Target Agent:** {security.get("target_agent", "N/A")}')
+    st.write(f'**Requested Tool:** {security.get("tool", "N/A")}')
 
 # =========================================================
 # LIVE REQUEST INSPECTION
@@ -244,49 +250,55 @@ if st.button("🛡️ Inspect Request", use_container_width=True):
             tool=tool,
             tool_arguments=tool_arguments
         )
-        security = result["security"]
+        st.session_state["last_inspection_result"] = result
+        st.rerun()
 
-        st.divider()
-        st.subheader("🛡️ Sentinel-A2A Analysis")
+# Display last custom inspection result from session state
+if "last_inspection_result" in st.session_state:
+    result = st.session_state["last_inspection_result"]
+    security = result["security"]
 
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Risk Score", f'{security["risk_score"]}/100')
-        with col2:
-            st.metric("Risk Level", security["risk_level"])
-        with col3:
-            st.metric("Authorization", "ALLOWED" if security["authorized"] else "DENIED")
-        with col4:
-            st.metric("Decision", security["decision"])
+    st.divider()
+    st.subheader("🛡️ Sentinel-A2A Analysis")
 
-        st.caption(f'Event ID: {security.get("event_id", "N/A")}')
-        st.caption(f'Timestamp: {security.get("timestamp", "N/A")}')
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Risk Score", f'{security["risk_score"]}/100')
+    with col2:
+        st.metric("Risk Level", security["risk_level"])
+    with col3:
+        st.metric("Authorization", "ALLOWED" if security["authorized"] else "DENIED")
+    with col4:
+        st.metric("Decision", security["decision"])
 
-        st.subheader("🚨 Detected Threats")
-        if security.get("threats"):
-            for threat in security["threats"]:
-                st.error(f"⚠️ {threat}")
-        else:
-            st.success("✅ No rule-based threats detected.")
+    st.caption(f'Event ID: {security.get("event_id", "N/A")}')
+    st.caption(f'Timestamp: {security.get("timestamp", "N/A")}')
 
-        if security.get("gemini_analysis"):
-            st.subheader("🧠 Gemini Security Intelligence")
-            st.code(security["gemini_analysis"], language="text")
+    st.subheader("🚨 Detected Threats")
+    if security.get("threats"):
+        for threat in security["threats"]:
+            st.error(f"⚠️ {threat}")
+    else:
+        st.success("✅ No rule-based threats detected.")
 
-        if security["decision"] == "ALLOW":
-            st.success("🟢 ALLOWED — Request passed security checks.")
-            if result.get("payment"):
-                st.subheader("💳 Payment Agent Response")
-                st.json(result["payment"])
-            if result.get("mcp_result"):
-                st.subheader("🔧 MCP Tool Result")
-                st.json(result["mcp_result"])
-        elif security["decision"] == "QUARANTINE":
-            st.warning("🟡 QUARANTINED — Requires additional verification.")
-            st.info("The MCP tool was NOT executed.")
-        else:
-            st.error("🔴 BLOCKED — Request stopped.")
-            st.info("The MCP tool was NOT executed.")
+    if security.get("gemini_analysis"):
+        st.subheader("🧠 Gemini Security Intelligence")
+        st.code(security["gemini_analysis"], language="text")
+
+    if security["decision"] == "ALLOW":
+        st.success("🟢 ALLOWED — Request passed security checks.")
+        if result.get("payment"):
+            st.subheader("💳 Payment Agent Response")
+            st.json(result["payment"])
+        if result.get("mcp_result"):
+            st.subheader("🔧 MCP Tool Result")
+            st.json(result["mcp_result"])
+    elif security["decision"] == "QUARANTINE":
+        st.warning("🟡 QUARANTINED — Requires additional verification.")
+        st.info("The MCP tool was NOT executed.")
+    else:
+        st.error("🔴 BLOCKED — Request stopped.")
+        st.info("The MCP tool was NOT executed.")
 
 # =========================================================
 # SECURITY EVENT HISTORY
