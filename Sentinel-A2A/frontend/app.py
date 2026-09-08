@@ -36,34 +36,12 @@ def get_agent_router():
 def fetch_firestore_events():
     try:
         reader = FirestoreReader()
-        
-        # Check if reader successfully connected to a Firestore DB instance
-        if reader.db is None or reader.collection is None:
-            return {
-                "available": False,
-                "error": "Firestore client not initialized",
-                "total_count": 0,
-                "recent_events": [],
-                "blocked_events": []
-            }
-
-        recent_events = reader.get_recent_events(limit=100) or []
-        
-        # Get count safely
-        try:
-            total_count = reader.get_event_count()
-        except AttributeError:
-            total_count = len(recent_events)
-
-        # Get blocked events safely
-        try:
-            blocked_events = reader.get_blocked_events(limit=100)
-        except AttributeError:
-            blocked_events = [e for e in recent_events if isinstance(e, dict) and e.get("decision") == "BLOCK"]
-
+        total_count = reader.get_event_count()
+        recent_events = reader.get_recent_events(limit=100)
+        blocked_events = reader.get_blocked_events(limit=100)
         return {
             "available": True,
-            "total_count": max(total_count, len(recent_events)),
+            "total_count": total_count,
             "recent_events": recent_events,
             "blocked_events": blocked_events
         }
@@ -289,20 +267,20 @@ if st.button("🛡️ Inspect Request", use_container_width=True):
 
 if "inspection_result" in st.session_state:
     result = st.session_state["inspection_result"]
-    security = result["inspection_result"] if "inspection_result" in result else result.get("security", {})
+    security = result["security"]
 
     st.divider()
     st.subheader("🛡️ Sentinel-A2A Analysis")
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("Risk Score", f'{security.get("risk_score", 0)}/100')
+        st.metric("Risk Score", f'{security["risk_score"]}/100')
     with col2:
-        st.metric("Risk Level", security.get("risk_level", "LOW"))
+        st.metric("Risk Level", security["risk_level"])
     with col3:
-        st.metric("Authorization", "ALLOWED" if security.get("authorized", True) else "DENIED")
+        st.metric("Authorization", "ALLOWED" if security["authorized"] else "DENIED")
     with col4:
-        st.metric("Decision", security.get("decision", "ALLOW"))
+        st.metric("Decision", security["decision"])
 
     st.caption(f'Event ID: {security.get("event_id", "N/A")}')
     st.caption(f'Timestamp: {security.get("timestamp", "N/A")}')
@@ -318,7 +296,7 @@ if "inspection_result" in st.session_state:
         st.subheader("🧠 Gemini Security Intelligence")
         st.code(security["gemini_analysis"], language="text")
 
-    if security.get("decision") == "ALLOW":
+    if security["decision"] == "ALLOW":
         st.success("🟢 ALLOWED — Request passed security checks.")
         if result.get("payment"):
             st.subheader("💳 Payment Agent Response")
@@ -326,7 +304,7 @@ if "inspection_result" in st.session_state:
         if result.get("mcp_result"):
             st.subheader("🔧 MCP Tool Result")
             st.json(result["mcp_result"])
-    elif security.get("decision") == "QUARANTINE":
+    elif security["decision"] == "QUARANTINE":
         st.warning("🟡 QUARANTINED — Requires additional verification.")
         st.info("The MCP tool was NOT executed.")
     else:
