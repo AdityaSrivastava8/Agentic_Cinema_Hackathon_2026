@@ -55,13 +55,11 @@ class SentinelA2A:
             (r"0x[a-fA-F0-9]{10,}", "Suspicious External Wallet Address"),
         ]
 
-        # -------------------------------------------------
-        # FIRESTORE LOGGING
-        # -------------------------------------------------
+        # FIRESTORE LOGGING SETUP
         try:
             self.logger = FirestoreLogger(os.getenv("GOOGLE_CLOUD_PROJECT"))
         except Exception as error:
-            self.logger = None
+            self.logger = FirestoreLogger()
             self._logger_init_error = str(error)
         else:
             self._logger_init_error = getattr(self.logger, "connection_error", None)
@@ -186,16 +184,14 @@ class SentinelA2A:
             decision=security_event["decision"]
         )
 
-        # STEP 11 — FIRESTORE LOGGING
-        if self.logger and getattr(self.logger, "is_connected", False):
-            try:
-                document_id = self.logger.log_event(security_event)
-                security_event["firestore_document_id"] = document_id
-            except Exception as error:
-                security_event["logging_error"] = str(error)
-        else:
-            reason = getattr(self, "_logger_init_error", None) or "logger not connected"
-            security_event["logging_error"] = f"Firestore write skipped: {reason}"
+        # STEP 11 — UNIFIED EVENT LOGGING (FIRESTORE + LOCAL MEMORY FALLBACK)
+        if self.logger:
+            document_id = self.logger.log_event(security_event)
+            security_event["firestore_document_id"] = document_id
+            if document_id and document_id.startswith("LOCAL_"):
+                security_event["logging_mode"] = "LOCAL_MEMORY"
+            else:
+                security_event["logging_mode"] = "FIRESTORE"
 
         # STEP 12 — RETURN SECURITY REPORT
         return security_event 
