@@ -16,15 +16,13 @@ class FirestoreReader:
         self.db = None
         self.collection = None
 
-        # 1. First priority: Check standard Streamlit secret configurations
+        # 1. First priority: Streamlit secrets
         if hasattr(st, "secrets"):
             secret_key = None
-            if "textkey" in st.secrets:
-                secret_key = st.secrets["textkey"]
-            elif "firestore" in st.secrets:
-                secret_key = st.secrets["firestore"]
-            elif "gcp_service_account" in st.secrets:
-                secret_key = st.secrets["gcp_service_account"]
+            for key in ["textkey", "firestore", "gcp_service_account"]:
+                if key in st.secrets:
+                    secret_key = st.secrets[key]
+                    break
 
             if secret_key is not None:
                 try:
@@ -39,14 +37,17 @@ class FirestoreReader:
                 except Exception as e:
                     print(f"Firestore secret initialization failed: {e}")
 
-        # 2. Second priority: Standard GCP environment credentials
-        if self.db is None and self.project_id:
+        # 2. Second priority: Standard GCP Application Default Credentials
+        if self.db is None:
             try:
-                self.db = firestore.Client(project=self.project_id)
+                if self.project_id:
+                    self.db = firestore.Client(project=self.project_id)
+                else:
+                    self.db = firestore.Client()
             except Exception as e:
                 print(f"GCP default initialization failed: {e}")
 
-        # Initialize collection if database connection is established
+        # Initialize collection if connection succeeded
         if self.db is not None:
             self.collection = self.db.collection("security_events")
         else:
