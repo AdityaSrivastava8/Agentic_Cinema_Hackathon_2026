@@ -31,21 +31,22 @@ st.set_page_config(
 def get_agent_router():
     return AgentRouter()
 
-# Cache Firestore data fetching with a 2-second TTL for live updates
-@st.cache_data(ttl=2)
+# Dynamic fetching without hard-locking on stale state
 def fetch_firestore_events():
     try:
         reader = FirestoreReader()
-        total_count = reader.get_event_count()
         recent_events = reader.get_recent_events(limit=100)
-        blocked_events = reader.get_blocked_events(limit=100)
+        total_count = reader.get_event_count()
+        blocked_events = [e for e in recent_events if isinstance(e, dict) and e.get("decision") == "BLOCK"]
+        
         return {
-            "available": True,
-            "total_count": total_count,
+            "available": True if recent_events or total_count > 0 or reader.collection is not None else False,
+            "total_count": max(total_count, len(recent_events)),
             "recent_events": recent_events,
             "blocked_events": blocked_events
         }
     except Exception as e:
+        print(f"[app.py] Error fetching events: {e}")
         return {
             "available": False,
             "error": str(e),
@@ -58,7 +59,6 @@ router = get_agent_router()
 fs_data = fetch_firestore_events()
 firestore_available = fs_data["available"]
 
-# Helper to clear cache when a new event occurs
 def refresh_security_data():
     st.cache_data.clear()
 
