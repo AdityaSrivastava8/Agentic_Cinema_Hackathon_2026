@@ -1,6 +1,6 @@
+import re
 from agents.shopping_agent import ShoppingAgent
 from agents.payment_agent import PaymentAgent
-
 from firewall.sentinel import SentinelA2A
 from mcp.mcp_gateway import MCPGateway
 
@@ -10,7 +10,6 @@ class AgentRouter:
     Routes communication between AI agents through Sentinel-A2A.
 
     Flow:
-
         ShoppingAgent
               |
               v
@@ -28,13 +27,9 @@ class AgentRouter:
                     |
                     v
                  MCP Tool
-
-    Sentinel-A2A performs the complete security analysis
-    before the request reaches the target agent or tool.
     """
 
     def __init__(self):
-
         # Create the AI agents.
         self.shopping_agent = ShoppingAgent()
         self.payment_agent = PaymentAgent()
@@ -45,6 +40,24 @@ class AgentRouter:
         # Create the MCP gateway.
         self.mcp_gateway = MCPGateway()
 
+        # Immediate hard-signature rules to catch direct injection & log tampering
+        self.forbidden_patterns = [
+            r"ignore\s+(all\s+)?previous\s+rules",
+            r"ignore\s+(all\s+)?prior\s+instructions",
+            r"erase.*log",
+            r"delete.*log",
+            r"bypass.*security",
+            r"0x[a-fA-F0-9]{10,}",  # External wallet address regex
+        ]
+
+    def _check_hard_signatures(self, message):
+        """Checks for immediate malicious prompt injection signatures."""
+        text = str(message).lower()
+        for pattern in self.forbidden_patterns:
+            if re.search(pattern, text):
+                return True, f"Hard Rule Triggered: {pattern}"
+        return False, None
+
     def send_to_payment_agent(
         self,
         message,
@@ -52,33 +65,21 @@ class AgentRouter:
         tool_arguments=None
     ):
         """
-        Send a request from ShoppingAgent to PaymentAgent.
-
-        The request first passes through Sentinel-A2A.
-
-        If Sentinel-A2A returns BLOCK or QUARANTINE,
-        execution stops.
-
-        If Sentinel-A2A returns ALLOW,
-        the PaymentAgent and requested MCP tool can execute.
+        Send a request from ShoppingAgent to PaymentAgent through Sentinel-A2A.
         """
-
         if tool_arguments is None:
             tool_arguments = {}
 
-        # -------------------------------------------------
         # STEP 1 — CREATE SHOPPING AGENT REQUEST
-        # -------------------------------------------------
-
         request = self.shopping_agent.create_request(
             message=message,
             tool=tool
         )
 
-        # -------------------------------------------------
-        # STEP 2 — SEND THROUGH SENTINEL-A2A
-        # -------------------------------------------------
+        # STEP 2 — LOCAL HARD SIGNATURE OVERRIDE
+        is_attack, rule_reason = self._check_hard_signatures(message)
 
+        # STEP 3 — SEND THROUGH SENTINEL-A2A FIREWALL
         security_result = self.sentinel.inspect_message(
             source_agent=request["source_agent"],
             target_agent=self.payment_agent.name,
@@ -86,45 +87,41 @@ class AgentRouter:
             tool=request["tool"]
         )
 
-        # -------------------------------------------------
-        # STEP 3 — ENFORCE SECURITY DECISION
-        # -------------------------------------------------
+        # Force BLOCK if hard attack signatures are present
+        if is_attack:
+            security_result["decision"] = "BLOCK"
+            security_result["risk_score"] = 95
+            security_result["risk_level"] = "CRITICAL"
+            security_result["authorized"] = False
+            if "threats" not in security_result or not security_result["threats"]:
+                security_result["threats"] = ["Prompt Injection / Security Violation"]
+            security_result["gemini_analysis"] = (
+                "THREAT_LEVEL: CRITICAL\n"
+                "THREAT: Injection attack / Malicious external action detected.\n"
+                f"REASON: {rule_reason}\n"
+                "RECOMMENDATION: BLOCK"
+            )
 
+        # STEP 4 — ENFORCE SECURITY DECISION
         if security_result["decision"] != "ALLOW":
-
             return {
                 "security": security_result,
                 "payment": None,
                 "mcp_result": None
             }
 
-        # -------------------------------------------------
-        # STEP 4 — PAYMENT AGENT
-        # -------------------------------------------------
+        # STEP 5 — PAYMENT AGENT EXECUTION
+        payment_result = self.payment_agent.process_payment(message)
 
-        payment_result = (
-            self.payment_agent.process_payment(
-                message
-            )
-        )
-
-        # -------------------------------------------------
-        # STEP 5 — MCP TOOL
-        # -------------------------------------------------
-
+        # STEP 6 — MCP TOOL EXECUTION
         mcp_result = None
-
         if tool:
-
             mcp_result = self.mcp_gateway.execute(
                 tool,
                 **tool_arguments
             )
 
-        # -------------------------------------------------
-        # STEP 6 — RETURN COMPLETE RESULT
-        # -------------------------------------------------
-
+        # STEP 7 — RETURN COMPLETE RESULT
         return {
             "security": security_result,
             "payment": payment_result,
@@ -138,27 +135,13 @@ class AgentRouter:
         tool_arguments=None
     ):
         """
-        Send a legitimate payment-status request
-        originating from the PaymentAgent.
-
-        This allows Sentinel-A2A to evaluate the request
-        using PaymentAgent's authorized tool permissions.
+        Send a payment-status request originating from PaymentAgent.
         """
-
         if tool_arguments is None:
             tool_arguments = {}
 
-        # -------------------------------------------------
-        # STEP 1 — PAYMENT AGENT IS THE SOURCE
-        # -------------------------------------------------
-
         source_agent = self.payment_agent.name
-
         target_agent = self.payment_agent.name
-
-        # -------------------------------------------------
-        # STEP 2 — SEND THROUGH SENTINEL-A2A
-        # -------------------------------------------------
 
         security_result = self.sentinel.inspect_message(
             source_agent=source_agent,
@@ -167,33 +150,20 @@ class AgentRouter:
             tool=tool
         )
 
-        # -------------------------------------------------
-        # STEP 3 — ENFORCE SECURITY DECISION
-        # -------------------------------------------------
-
         if security_result["decision"] != "ALLOW":
-
             return {
                 "security": security_result,
                 "payment": None,
                 "mcp_result": None
             }
 
-        # -------------------------------------------------
-        # STEP 4 — EXECUTE AUTHORIZED MCP TOOL
-        # -------------------------------------------------
-
         mcp_result = self.mcp_gateway.execute(
             tool,
             **tool_arguments
         )
 
-        # -------------------------------------------------
-        # STEP 5 — RETURN RESULT
-        # -------------------------------------------------
-
         return {
             "security": security_result,
             "payment": None,
             "mcp_result": mcp_result
-        }
+        } 
