@@ -76,7 +76,11 @@ if firestore_available:
         with col2:
             st.metric("Threats Blocked", len(blocked_events))
         with col3:
-            st.metric("Firewall Status", "🟢 ACTIVE")
+            status = "🟢 CONNECTED" if firestore_reader.is_connected else "🔴 NOT CONNECTED"
+            st.metric("Firestore Status", status)
+
+        if not firestore_reader.is_connected and firestore_reader.connection_error:
+            st.caption(f"⚠️ {firestore_reader.connection_error}")
     except Exception:
         st.warning("Firestore is configured but currently unavailable.")
 else:
@@ -171,14 +175,10 @@ if scenario:
         )
         security = result["security"]
 
-        # ---- TEMPORARY: Firestore logging diagnostic ----
         if security.get("logging_error"):
-            st.warning(f"Firestore logging failed: {security['logging_error']}")
+            st.warning(f"Firestore: {security['logging_error']}")
         elif security.get("firestore_document_id"):
             st.caption(f"✅ Logged to Firestore as {security['firestore_document_id']}")
-        else:
-            st.caption("⚠️ No Firestore write attempted (logger is None)")
-        # ---------------------------------------------------
 
         st.subheader("🛡️ Sentinel-A2A Response")
         col1, col2, col3 = st.columns(3)
@@ -255,14 +255,10 @@ if st.button("🛡️ Inspect Request", use_container_width=True):
         )
         security = result["security"]
 
-        # ---- TEMPORARY: Firestore logging diagnostic ----
         if security.get("logging_error"):
-            st.warning(f"Firestore logging failed: {security['logging_error']}")
+            st.warning(f"Firestore: {security['logging_error']}")
         elif security.get("firestore_document_id"):
             st.caption(f"✅ Logged to Firestore as {security['firestore_document_id']}")
-        else:
-            st.caption("⚠️ No Firestore write attempted (logger is None)")
-        # ---------------------------------------------------
 
         st.divider()
         st.subheader("🛡️ Sentinel-A2A Analysis")
@@ -278,71 +274,4 @@ if st.button("🛡️ Inspect Request", use_container_width=True):
             st.metric("Decision", security["decision"])
 
         st.caption(f'Event ID: {security.get("event_id", "N/A")}')
-        st.caption(f'Timestamp: {security.get("timestamp", "N/A")}')
-
-        st.subheader("🚨 Detected Threats")
-        if security.get("threats"):
-            for threat in security["threats"]:
-                st.error(f"⚠️ {threat}")
-        else:
-            st.success("✅ No rule-based threats detected.")
-
-        if security.get("gemini_analysis"):
-            st.subheader("🧠 Gemini Security Intelligence")
-            st.code(security["gemini_analysis"], language="text")
-
-        if security["decision"] == "ALLOW":
-            st.success("🟢 ALLOWED — Request passed security checks.")
-            if result.get("payment"):
-                st.subheader("💳 Payment Agent Response")
-                st.json(result["payment"])
-            if result.get("mcp_result"):
-                st.subheader("🔧 MCP Tool Result")
-                st.json(result["mcp_result"])
-        elif security["decision"] == "QUARANTINE":
-            st.warning("🟡 QUARANTINED — Requires additional verification.")
-            st.info("The MCP tool was NOT executed.")
-        else:
-            st.error("🔴 BLOCKED — Request stopped.")
-            st.info("The MCP tool was NOT executed.")
-
-# =========================================================
-# SECURITY EVENT HISTORY
-# =========================================================
-
-st.divider()
-st.subheader("📜 Security Event History")
-
-if firestore_available:
-    try:
-        events = firestore_reader.get_recent_events(limit=20)
-        if events:
-            for event in events:
-                decision = event.get("decision", "UNKNOWN")
-                icon = "🔴" if decision == "BLOCK" else ("🟡" if decision == "QUARANTINE" else "🟢")
-
-                with st.expander(
-                    f'{icon} {event.get("source_agent", "Unknown")} → '
-                    f'{event.get("target_agent", "Unknown")} | {decision}'
-                ):
-                    st.write(f'**Event ID:** {event.get("event_id", "N/A")}')
-                    st.write(f'**Timestamp:** {event.get("timestamp", "N/A")}')
-                    st.write(f'**Tool:** {event.get("tool", "None")}')
-                    st.write(f'**Risk Score:** {event.get("risk_score", "N/A")}')
-                    st.write(f'**Risk Level:** {event.get("risk_level", "N/A")}')
-                    st.write(f'**Authorized:** {event.get("authorized", "N/A")}')
-
-                    if event.get("threats"):
-                        st.write("**Threats:**")
-                        for threat in event["threats"]:
-                            st.error(str(threat))
-
-                    if event.get("gemini_analysis"):
-                        st.write("**Gemini Analysis:**")
-                        st.code(event["gemini_analysis"], language="text")
-        else:
-            st.info("No security events recorded yet.")
-    except Exception as error:
-        st.warning(f"Unable to load security history: {error}")
-else:
-    st.info("📡 Security history will appear here after Firestore is connected.")
+        st.caption(f'Timestamp: 
