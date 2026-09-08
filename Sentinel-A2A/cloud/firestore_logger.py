@@ -28,12 +28,37 @@ class FirestoreLogger:
     def log_event(self, security_event):
         """
         Save one Sentinel-A2A security event to Firestore.
+        Uses event_id as the document ID if present, otherwise auto-generates one.
         """
+        if not isinstance(security_event, dict):
+            raise ValueError("security_event must be a dictionary.")
 
-        # Add the event as a new Firestore document.
-        document = self.collection.document()
+        # Re-use the existing UUID if Sentinel already assigned an event_id
+        doc_id = security_event.get("event_id")
 
+        if doc_id:
+            document = self.collection.document(str(doc_id))
+        else:
+            document = self.collection.document()
+
+        # Save event payload to Firestore
         document.set(security_event)
 
-        # Return the generated document ID.
-        return document.id 
+        # Return the document ID
+        return document.id
+
+    def get_recent_events(self, limit=50):
+        """
+        Retrieve the latest security logs from Firestore for audit dashboards.
+        """
+        try:
+            docs = (
+                self.collection
+                .order_by("timestamp", direction=firestore.Query.DESCENDING)
+                .limit(limit)
+                .stream()
+            )
+            return [doc.to_dict() for doc in docs]
+        except Exception as error:
+            print(f"[FirestoreLogger] Error retrieving logs: {error}")
+            return [] 
