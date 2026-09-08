@@ -2,13 +2,16 @@ import os
 import sys
 
 # =========================================================
-# PATH CONFIGURATION (Must run BEFORE local imports)
+# PATH CONFIGURATION (Fixes ModuleNotFoundError on Cloud)
 # =========================================================
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
+PROJECT_ROOT = os.path.dirname(CURRENT_DIR)  # Points to Sentinel-A2A
+PARENT_ROOT = os.path.dirname(PROJECT_ROOT)  # Points to repository root
 
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+# Add both levels to sys.path if not present
+for path in [PROJECT_ROOT, PARENT_ROOT]:
+    if path and path not in sys.path:
+        sys.path.insert(0, path)
 
 import importlib
 import streamlit as st
