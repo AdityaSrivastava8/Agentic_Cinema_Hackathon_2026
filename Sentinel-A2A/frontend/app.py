@@ -1,15 +1,17 @@
-import importlib
 import os
 import sys
 
 # =========================================================
-# PATH CONFIGURATION (Fixes ModuleNotFoundError on Cloud)
+# PATH CONFIGURATION (Must run BEFORE local imports)
 # =========================================================
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
 
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
+
+import importlib
+import streamlit as st
 
 import agents.agent_router
 
