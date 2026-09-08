@@ -17,9 +17,6 @@ from firewall.security_response import SecurityResponseEngine
 from cloud.firestore_logger import FirestoreLogger
 
 
-# Rank tables used to escalate (never downgrade) severity/action
-# derived from the graduated risk score against whatever
-# ThreatIntelligence already recommended.
 _SEVERITY_RANK = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
 _ACTION_RANK = {"ALLOW": 0, "QUARANTINE": 1, "BLOCK": 2}
 
@@ -30,9 +27,6 @@ class SentinelA2A:
     """
 
     def __init__(self):
-        # -------------------------------------------------
-        # CORE SECURITY COMPONENTS
-        # -------------------------------------------------
         self.inspector = AgentInspector()
         self.threat_detector = ThreatDetector()
         self.risk_engine = RiskEngine()
@@ -40,14 +34,10 @@ class SentinelA2A:
         self.authorization = AuthorizationEngine()
         self.gemini = GeminiAnalyzer()
 
-        # -------------------------------------------------
-        # BEHAVIORAL & THREAT INTEL
-        # -------------------------------------------------
         self.behavior_analyzer = BehaviorAnalyzer()
         self.threat_intelligence = ThreatIntelligence()
         self.security_response = SecurityResponseEngine()
 
-        # Hard-coded prompt injection & security signatures for fallback detection
         self.forbidden_patterns = [
             (r"ignore\s+(all\s+)?previous", "Prompt Injection: Override Rules"),
             (r"ignore\s+(all\s+)?prior", "Prompt Injection: Instruction Override"),
@@ -68,16 +58,14 @@ class SentinelA2A:
 
         # -------------------------------------------------
         # FIRESTORE LOGGING
-        # (mirrors FirestoreReader's own credential resolution order —
-        #  do NOT gate this behind GOOGLE_CLOUD_PROJECT alone, since on
-        #  Streamlit Cloud credentials normally come from st.secrets,
-        #  not an environment variable. FirestoreLogger internally
-        #  falls back to st.secrets if project_id / env var is missing.)
         # -------------------------------------------------
         try:
             self.logger = FirestoreLogger(os.getenv("GOOGLE_CLOUD_PROJECT"))
-        except Exception:
+        except Exception as error:
             self.logger = None
+            self._logger_init_error = str(error)
+        else:
+            self._logger_init_error = getattr(self.logger, "connection_error", None)
 
     def inspect_message(
         self,
@@ -87,13 +75,7 @@ class SentinelA2A:
         tool=None,
         tool_arguments=None
     ):
-        """
-        Perform complete Sentinel-A2A security inspection.
-        """
-
-        # -------------------------------------------------
         # STEP 1 — INSPECT COMMUNICATION
-        # -------------------------------------------------
         security_event = self.inspector.inspect(
             source_agent=source_agent,
             target_agent=target_agent,
@@ -110,15 +92,11 @@ class SentinelA2A:
         security_event["target_agent"] = target_agent
         security_event["tool"] = tool
 
-        # Build full payload context string for scanning (includes tool arguments)
         full_text_to_scan = f"{message} {tool_arguments or {}}"
 
-        # -------------------------------------------------
         # STEP 2 — THREAT DETECTION + FALLBACK PATTERN SCAN
-        # -------------------------------------------------
         threats = self.threat_detector.detect(full_text_to_scan) or []
 
-        # Enforce fallback regex inspection across message and arguments
         text_lower = full_text_to_scan.lower()
         for pattern, threat_label in self.forbidden_patterns:
             if re.search(pattern, text_lower) and threat_label not in threats:
@@ -126,15 +104,11 @@ class SentinelA2A:
 
         security_event["threats"] = threats
 
-        # -------------------------------------------------
         # STEP 3 — BASE RISK SCORE (graduated, no blanket force)
-        # -------------------------------------------------
         base_risk = self.risk_engine.calculate(threats)
         security_event["base_risk_score"] = base_risk
 
-        # -------------------------------------------------
         # STEP 4 — AUTHORIZATION
-        # -------------------------------------------------
         if tool:
             authorized = self.authorization.is_authorized(
                 agent_name=source_agent,
@@ -145,9 +119,7 @@ class SentinelA2A:
 
         security_event["authorized"] = authorized
 
-        # -------------------------------------------------
         # STEP 5 — GEMINI ANALYSIS
-        # -------------------------------------------------
         gemini_analysis = None
         if authorized:
             try:
@@ -162,9 +134,7 @@ class SentinelA2A:
 
         security_event["gemini_analysis"] = gemini_analysis
 
-        # -------------------------------------------------
         # STEP 6 — BEHAVIOR ANALYSIS
-        # -------------------------------------------------
         behavior_result = self.behavior_analyzer.analyze(source_agent)
         behavior_score = behavior_result.get("anomaly_score", 0)
 
@@ -173,17 +143,13 @@ class SentinelA2A:
         security_event["behavior_reasons"] = behavior_result.get("reasons", [])
         security_event["behavior_requests_analyzed"] = behavior_result.get("requests_analyzed", 0)
 
-        # -------------------------------------------------
         # STEP 7 — THREAT INTELLIGENCE + GRADUATED ESCALATION
-        # -------------------------------------------------
         threat_summary = self.threat_intelligence.build_summary(threats)
         security_event["threat_intelligence"] = threat_summary
 
         threat_severity = threat_summary.get("highest_severity", "LOW")
         threat_action = threat_summary.get("recommended_action", "ALLOW")
 
-        # Derive severity/action from the graduated base_risk score
-        # instead of "any threat at all = CRITICAL/BLOCK".
         if base_risk >= 80:
             risk_derived_severity, risk_derived_action = "CRITICAL", "BLOCK"
         elif base_risk >= 55:
@@ -193,17 +159,13 @@ class SentinelA2A:
         else:
             risk_derived_severity, risk_derived_action = "LOW", "ALLOW"
 
-        # Only escalate — never downgrade below what
-        # ThreatIntelligence already recommended.
         if _SEVERITY_RANK.get(risk_derived_severity, 0) > _SEVERITY_RANK.get(threat_severity, 0):
             threat_severity = risk_derived_severity
 
         if _ACTION_RANK.get(risk_derived_action, 0) > _ACTION_RANK.get(threat_action, 0):
             threat_action = risk_derived_action
 
-        # -------------------------------------------------
         # STEP 8 — GEMINI SECURITY SIGNAL
-        # -------------------------------------------------
         gemini_text = str(gemini_analysis or "").upper()
 
         if "BLOCK" in gemini_text:
@@ -211,9 +173,7 @@ class SentinelA2A:
         elif "QUARANTINE" in gemini_text and threat_action != "BLOCK":
             threat_action = "QUARANTINE"
 
-        # -------------------------------------------------
         # STEP 9 — FINAL SECURITY RESPONSE
-        # -------------------------------------------------
         final_result = self.security_response.evaluate(
             base_risk=base_risk,
             behavior_score=behavior_score,
@@ -228,9 +188,7 @@ class SentinelA2A:
         security_event["decision"] = final_result["decision"]
         security_event["recommended_action"] = threat_action
 
-        # -------------------------------------------------
         # STEP 10 — RECORD BEHAVIOR
-        # -------------------------------------------------
         self.behavior_analyzer.record_request(
             agent_name=source_agent,
             tool=tool,
@@ -238,17 +196,16 @@ class SentinelA2A:
             decision=final_result["decision"]
         )
 
-        # -------------------------------------------------
         # STEP 11 — FIRESTORE LOGGING
-        # -------------------------------------------------
-        if self.logger:
+        if self.logger and self.logger.is_connected:
             try:
                 document_id = self.logger.log_event(security_event)
                 security_event["firestore_document_id"] = document_id
             except Exception as error:
                 security_event["logging_error"] = str(error)
+        else:
+            reason = self._logger_init_error or "logger not connected"
+            security_event["logging_error"] = f"Firestore write skipped: {reason}"
 
-        # -------------------------------------------------
         # STEP 12 — RETURN SECURITY REPORT
-        # -------------------------------------------------
         return security_event 
