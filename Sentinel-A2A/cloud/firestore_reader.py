@@ -18,7 +18,6 @@ class FirestoreReader:
 
         # 1. First priority: Check standard Streamlit secret configurations
         if hasattr(st, "secrets"):
-            # Check for [textkey], [firestore], or [gcp_service_account] sections
             secret_key = None
             if "textkey" in st.secrets:
                 secret_key = st.secrets["textkey"]
@@ -29,7 +28,6 @@ class FirestoreReader:
 
             if secret_key is not None:
                 try:
-                    # Parse as JSON string if string, else convert TOML AttrDict/dict directly
                     if isinstance(secret_key, str):
                         key_dict = json.loads(secret_key)
                     else:
@@ -55,9 +53,6 @@ class FirestoreReader:
             print("Firestore is running in unconfigured fallback mode.")
 
     def get_recent_events(self, limit=20):
-        """
-        Retrieve the most recent Sentinel-A2A events.
-        """
         if self.collection is None:
             return []
 
@@ -81,9 +76,6 @@ class FirestoreReader:
             return []
 
     def get_blocked_events(self, limit=20):
-        """
-        Retrieve recently blocked security events.
-        """
         if self.collection is None:
             return []
 
@@ -107,9 +99,6 @@ class FirestoreReader:
             return []
 
     def get_event_count(self):
-        """
-        Return the total number of stored security events.
-        """
         if self.collection is None:
             return 0
 
