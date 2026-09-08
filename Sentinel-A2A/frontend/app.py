@@ -1,16 +1,14 @@
 import os
 import sys
 
-# Direct absolute path configuration
+# Ensure Sentinel-A2A root directory is in sys.path
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
 
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-import importlib
 import streamlit as st
-
 import agents.agent_router
 importlib.reload(agents.agent_router)
 
