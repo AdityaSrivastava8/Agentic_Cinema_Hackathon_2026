@@ -17,6 +17,13 @@ from firewall.security_response import SecurityResponseEngine
 from cloud.firestore_logger import FirestoreLogger
 
 
+# Rank tables used to escalate (never downgrade) severity/action
+# derived from the graduated risk score against whatever
+# ThreatIntelligence already recommended.
+_SEVERITY_RANK = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
+_ACTION_RANK = {"ALLOW": 0, "QUARANTINE": 1, "BLOCK": 2}
+
+
 class SentinelA2A:
     """
     Main security controller for Sentinel-A2A.
@@ -120,14 +127,9 @@ class SentinelA2A:
         security_event["threats"] = threats
 
         # -------------------------------------------------
-        # STEP 3 — BASE RISK SCORE
+        # STEP 3 — BASE RISK SCORE (graduated, no blanket force)
         # -------------------------------------------------
         base_risk = self.risk_engine.calculate(threats)
-
-        # Force critical base risk if injection threats are found
-        if threats and base_risk < 75.0:
-            base_risk = 95.0
-
         security_event["base_risk_score"] = base_risk
 
         # -------------------------------------------------
@@ -172,7 +174,7 @@ class SentinelA2A:
         security_event["behavior_requests_analyzed"] = behavior_result.get("requests_analyzed", 0)
 
         # -------------------------------------------------
-        # STEP 7 — THREAT INTELLIGENCE
+        # STEP 7 — THREAT INTELLIGENCE + GRADUATED ESCALATION
         # -------------------------------------------------
         threat_summary = self.threat_intelligence.build_summary(threats)
         security_event["threat_intelligence"] = threat_summary
@@ -180,10 +182,24 @@ class SentinelA2A:
         threat_severity = threat_summary.get("highest_severity", "LOW")
         threat_action = threat_summary.get("recommended_action", "ALLOW")
 
-        # Override threat action if explicit threats were detected
-        if threats:
-            threat_severity = "CRITICAL"
-            threat_action = "BLOCK"
+        # Derive severity/action from the graduated base_risk score
+        # instead of "any threat at all = CRITICAL/BLOCK".
+        if base_risk >= 80:
+            risk_derived_severity, risk_derived_action = "CRITICAL", "BLOCK"
+        elif base_risk >= 55:
+            risk_derived_severity, risk_derived_action = "HIGH", "QUARANTINE"
+        elif base_risk >= 30:
+            risk_derived_severity, risk_derived_action = "MEDIUM", "QUARANTINE"
+        else:
+            risk_derived_severity, risk_derived_action = "LOW", "ALLOW"
+
+        # Only escalate — never downgrade below what
+        # ThreatIntelligence already recommended.
+        if _SEVERITY_RANK.get(risk_derived_severity, 0) > _SEVERITY_RANK.get(threat_severity, 0):
+            threat_severity = risk_derived_severity
+
+        if _ACTION_RANK.get(risk_derived_action, 0) > _ACTION_RANK.get(threat_action, 0):
+            threat_action = risk_derived_action
 
         # -------------------------------------------------
         # STEP 8 — GEMINI SECURITY SIGNAL
@@ -206,12 +222,6 @@ class SentinelA2A:
             authorized=authorized,
             threat_action=threat_action
         )
-
-        # Ensure high risk score & block decision if threats exist
-        if threats:
-            final_result["decision"] = "BLOCK"
-            final_result["risk_level"] = "CRITICAL"
-            final_result["risk_score"] = max(final_result.get("risk_score", 0), 95.0)
 
         security_event["risk_score"] = final_result["risk_score"]
         security_event["risk_level"] = final_result["risk_level"]
