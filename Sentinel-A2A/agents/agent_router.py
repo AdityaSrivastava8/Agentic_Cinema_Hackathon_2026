@@ -1,33 +1,33 @@
-import os
-import sys
-
-# Standardize sys.path so PROJECT_ROOT (Sentinel-A2A) is accessible
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
-
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
-
 import re
-
-# Robust import handling supporting package and standalone execution
-try:
-    from .shopping_agent import ShoppingAgent
-    from .payment_agent import PaymentAgent
-    from firewall.sentinel import SentinelA2A
-    from mcp.mcp_gateway import MCPGateway
-    from cloud.firestore_writer import FirestoreWriter
-except ImportError:
-    from agents.shopping_agent import ShoppingAgent
-    from agents.payment_agent import PaymentAgent
-    from firewall.sentinel import SentinelA2A
-    from mcp.mcp_gateway import MCPGateway
-    from cloud.firestore_writer import FirestoreWriter
+from agents.shopping_agent import ShoppingAgent
+from agents.payment_agent import PaymentAgent
+from firewall.sentinel import SentinelA2A
+from mcp.mcp_gateway import MCPGateway
+from cloud.firestore_writer import FirestoreWriter
 
 
 class AgentRouter:
     """
     Routes communication between AI agents through Sentinel-A2A.
+
+    Flow:
+        ShoppingAgent
+              |
+              v
+        Sentinel-A2A
+              |
+        +-----+-----+
+        |           |
+      BLOCK       ALLOW
+                    |
+                    v
+              PaymentAgent
+                    |
+                    v
+                MCPGateway
+                    |
+                    v
+                 MCP Tool
     """
 
     def __init__(self):
@@ -72,6 +72,10 @@ class AgentRouter:
         ]
 
     def _check_hard_signatures(self, message, tool_arguments=None):
+        """
+        Checks for malicious prompt injection signatures across both 
+        the message text and all nested tool argument values.
+        """
         arg_values = ""
         if isinstance(tool_arguments, dict):
             arg_values = " ".join([str(v) for v in tool_arguments.values()])
@@ -85,6 +89,7 @@ class AgentRouter:
         return False, None
 
     def _log_to_firestore(self, security_result):
+        """Helper to safely push security logs to Firestore."""
         if self.writer:
             try:
                 self.writer.log_event(security_result)
@@ -97,16 +102,22 @@ class AgentRouter:
         tool=None,
         tool_arguments=None
     ):
+        """
+        Send a request from ShoppingAgent to PaymentAgent through Sentinel-A2A.
+        """
         if tool_arguments is None:
             tool_arguments = {}
 
+        # STEP 1 — CREATE SHOPPING AGENT REQUEST
         request = self.shopping_agent.create_request(
             message=message,
             tool=tool
         )
 
+        # STEP 2 — LOCAL HARD SIGNATURE OVERRIDE (Scans message + tool_arguments)
         is_attack, rule_reason = self._check_hard_signatures(message, tool_arguments)
 
+        # STEP 3 — SEND THROUGH SENTINEL-A2A FIREWALL
         security_result = self.sentinel.inspect_message(
             source_agent=request["source_agent"],
             target_agent=self.payment_agent.name,
@@ -114,6 +125,7 @@ class AgentRouter:
             tool=request["tool"]
         )
 
+        # Force BLOCK if hard attack signatures or indirect injections are present
         if is_attack:
             security_result["decision"] = "BLOCK"
             security_result["risk_score"] = 100
@@ -127,8 +139,10 @@ class AgentRouter:
                 "RECOMMENDATION: BLOCK"
             )
 
+        # STEP 4 — LOG EVENT TO FIRESTORE
         self._log_to_firestore(security_result)
 
+        # STEP 5 — ENFORCE SECURITY DECISION
         if security_result["decision"] != "ALLOW":
             return {
                 "security": security_result,
@@ -136,8 +150,10 @@ class AgentRouter:
                 "mcp_result": None
             }
 
+        # STEP 6 — PAYMENT AGENT EXECUTION
         payment_result = self.payment_agent.process_payment(message)
 
+        # STEP 7 — MCP TOOL EXECUTION
         mcp_result = None
         if tool:
             mcp_result = self.mcp_gateway.execute(
@@ -145,6 +161,7 @@ class AgentRouter:
                 **tool_arguments
             )
 
+        # STEP 8 — RETURN COMPLETE RESULT
         return {
             "security": security_result,
             "payment": payment_result,
@@ -157,12 +174,16 @@ class AgentRouter:
         tool="get_payment_status",
         tool_arguments=None
     ):
+        """
+        Send a payment-status request originating from PaymentAgent.
+        """
         if tool_arguments is None:
             tool_arguments = {}
 
         source_agent = self.payment_agent.name
         target_agent = self.payment_agent.name
 
+        # Hard signature & indirect injection check
         is_attack, rule_reason = self._check_hard_signatures(message, tool_arguments)
 
         security_result = self.sentinel.inspect_message(
@@ -184,6 +205,7 @@ class AgentRouter:
                 "RECOMMENDATION: BLOCK"
             )
 
+        # LOG EVENT TO FIRESTORE
         self._log_to_firestore(security_result)
 
         if security_result["decision"] != "ALLOW":
