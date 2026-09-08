@@ -22,7 +22,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Initialize Session State Arrays
+# Initialize Persistent Session State Arrays
 if "local_events" not in st.session_state:
     st.session_state["local_events"] = []
 
@@ -33,6 +33,25 @@ if "local_events" not in st.session_state:
 @st.cache_resource
 def get_agent_router():
     return AgentRouter()
+
+def sync_and_store_event(security_event: dict):
+    """
+    Ensures security events persist across Streamlit re-renders
+    and remain perfectly synced between local memory store and session state.
+    """
+    if not isinstance(security_event, dict):
+        return
+
+    # De-duplicate before adding
+    evt_id = security_event.get("event_id")
+    session_ids = {e.get("event_id") for e in st.session_state["local_events"]}
+    
+    if evt_id not in session_ids:
+        st.session_state["local_events"].insert(0, security_event)
+
+    local_ids = {e.get("event_id") for e in LOCAL_EVENT_STORE}
+    if evt_id not in local_ids:
+        LOCAL_EVENT_STORE.insert(0, security_event)
 
 def fetch_firestore_data():
     """
@@ -52,14 +71,20 @@ def fetch_firestore_data():
     except Exception:
         pass
 
-    # Merge session state and module-level memory stores seamlessly
+    # Merge session state and module-level memory stores cleanly
     if not available:
-        session_events = st.session_state.get("local_events", [])
-        combined = list(session_events)
+        combined_dict = {}
+        # Merge local module store
         for evt in LOCAL_EVENT_STORE:
-            if evt not in combined:
-                combined.append(evt)
-        events = sorted(combined, key=lambda x: str(x.get("timestamp", "")), reverse=True)
+            if isinstance(evt, dict) and evt.get("event_id"):
+                combined_dict[evt["event_id"]] = evt
+        # Merge session state store
+        for evt in st.session_state.get("local_events", []):
+            if isinstance(evt, dict) and evt.get("event_id"):
+                combined_dict[evt["event_id"]] = evt
+
+        events = list(combined_dict.values())
+        events.sort(key=lambda x: str(x.get("timestamp", "")), reverse=True)
 
     count = len(events)
     blocked = [e for e in events if e.get("decision") == "BLOCK"]
@@ -78,6 +103,7 @@ with st.sidebar:
         st.cache_resource.clear()
         st.cache_data.clear()
         st.session_state["local_events"] = []
+        LOCAL_EVENT_STORE.clear()
         st.rerun()
 
 router = get_agent_router()
@@ -185,7 +211,7 @@ st.write(
 scenario_names = [scenario["name"] for scenario in ATTACK_SCENARIOS]
 selected_scenario = st.selectbox("Select Attack Scenario", scenario_names)
 
-# Clear session results if scenario changes
+# Clear session result display if scenario changes
 if st.session_state.get("current_scenario") != selected_scenario:
     st.session_state["current_scenario"] = selected_scenario
     st.session_state.pop("simulation_result", None)
@@ -205,13 +231,10 @@ if scenario:
             tool_arguments=scenario["arguments"]
         )
         st.session_state["simulation_result"] = result
-        
-        # Sync with Streamlit Session Memory and Local Event Store
+
+        # Sync event to local memory and session state
         if "security" in result and isinstance(result["security"], dict):
-            sec_event = result["security"]
-            st.session_state["local_events"].insert(0, sec_event)
-            if sec_event not in LOCAL_EVENT_STORE:
-                LOCAL_EVENT_STORE.insert(0, sec_event)
+            sync_and_store_event(result["security"])
 
         st.rerun()
 
@@ -298,13 +321,10 @@ if st.button("🛡️ Inspect Request", use_container_width=True):
             tool_arguments=tool_arguments
         )
         st.session_state["inspection_result"] = result
-        
-        # Sync with Streamlit Session Memory and Local Event Store
+
+        # Sync event to local memory and session state
         if "security" in result and isinstance(result["security"], dict):
-            sec_event = result["security"]
-            st.session_state["local_events"].insert(0, sec_event)
-            if sec_event not in LOCAL_EVENT_STORE:
-                LOCAL_EVENT_STORE.insert(0, sec_event)
+            sync_and_store_event(result["security"])
 
         st.rerun()
 
@@ -326,7 +346,7 @@ if "inspection_result" in st.session_state:
     with col2:
         st.metric("Risk Level", security["risk_level"])
     with col3:
-        st.metric("Authorization", "ALLOWED" if security["authorized"] else "DENIED")
+        st.metric("Authorization", "ALLOWED" if security.get("authorized", True) else "DENIED")
     with col4:
         st.metric("Decision", security["decision"])
 
@@ -381,7 +401,7 @@ if events:
             st.write(f'**Tool:** {event.get("tool", "None")}')
             st.write(f'**Risk Score:** {event.get("risk_score", "N/A")}')
             st.write(f'**Risk Level:** {event.get("risk_level", "N/A")}')
-            st.write(f'**Authorized:** {event.get("authorized", "N/A")}')
+            st.write(f'**Authorized:** {event.get("authorized", True)}')
 
             if event.get("threats"):
                 st.write("**Threats:**")
