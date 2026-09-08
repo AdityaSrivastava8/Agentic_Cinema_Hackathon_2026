@@ -26,7 +26,12 @@ st.set_page_config(
 # INITIALIZE SYSTEM
 # =========================================================
 
-router = AgentRouter()
+# Cache router resource to prevent redundant component instantiations while ensuring smooth reloads
+@st.cache_resource
+def get_agent_router():
+    return AgentRouter()
+
+router = get_agent_router()
 
 
 # =========================================================
