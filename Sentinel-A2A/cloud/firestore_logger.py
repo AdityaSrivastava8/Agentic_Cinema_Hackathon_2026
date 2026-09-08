@@ -1,56 +1,111 @@
+import json
+import os
+import uuid
+from datetime import datetime, timezone
+import streamlit as st
 from google.cloud import firestore
+from google.oauth2 import service_account
 
 
 class FirestoreLogger:
     """
     Stores Sentinel-A2A security events in Google Cloud Firestore.
-
-    Each inspected agent request can be recorded with:
-    - source agent
-    - target agent
-    - requested tool
-    - detected threats
-    - risk score
-    - risk level
-    - authorization result
-    - Gemini analysis
-    - final decision
     """
 
-    def __init__(self, project_id):
-        # Create a Firestore client using the Google Cloud project.
-        self.db = firestore.Client(project=project_id)
+    def __init__(self, project_id=None):
+        self.project_id = project_id or os.getenv("GOOGLE_CLOUD_PROJECT")
+        self.db = None
+        self.collection = None
 
-        # All Sentinel-A2A security events will be stored
-        # inside this Firestore collection.
-        self.collection = self.db.collection("security_events")
+        # 1. Streamlit Secrets Integration
+        if hasattr(st, "secrets"):
+            secret_key = None
+            for key in ["textkey", "firestore", "gcp_service_account"]:
+                if key in st.secrets:
+                    secret_key = st.secrets[key]
+                    break
+
+            if secret_key is not None:
+                try:
+                    if isinstance(secret_key, str):
+                        key_dict = json.loads(secret_key)
+                    else:
+                        key_dict = dict(secret_key)
+
+                    creds = service_account.Credentials.from_service_account_info(key_dict)
+                    self.project_id = self.project_id or key_dict.get("project_id")
+                    self.db = firestore.Client(credentials=creds, project=self.project_id)
+                except Exception as e:
+                    print(f"[FirestoreLogger] Secrets initialization failed: {e}")
+
+        # 2. Default GCP Application Credentials Fallback
+        if self.db is None:
+            try:
+                if self.project_id:
+                    self.db = firestore.Client(project=self.project_id)
+                else:
+                    self.db = firestore.Client()
+            except Exception as e:
+                print(f"[FirestoreLogger] GCP default initialization failed: {e}")
+
+        # Initialize target collection if connection succeeded
+        if self.db is not None:
+            self.collection = self.db.collection("security_events")
+            print("[FirestoreLogger] Successfully connected to Firestore.")
+        else:
+            print("[FirestoreLogger] WARNING: Unconfigured fallback mode. Events will NOT save.")
 
     def log_event(self, security_event):
         """
         Save one Sentinel-A2A security event to Firestore.
         Uses event_id as the document ID if present, otherwise auto-generates one.
         """
+        if self.collection is None:
+            print("[FirestoreLogger] Cannot log event: Firestore client not connected.")
+            return False
+
         if not isinstance(security_event, dict):
             raise ValueError("security_event must be a dictionary.")
 
-        # Re-use the existing UUID if Sentinel already assigned an event_id
-        doc_id = security_event.get("event_id")
+        try:
+            doc_id = security_event.get("event_id") or str(uuid.uuid4())
+            
+            # Ensure timestamp is string formatted
+            if "timestamp" not in security_event or not security_event["timestamp"]:
+                timestamp = datetime.now(timezone.utc).isoformat()
+            else:
+                timestamp = str(security_event["timestamp"])
 
-        if doc_id:
-            document = self.collection.document(str(doc_id))
-        else:
-            document = self.collection.document()
+            # Sanitize keys and values for Firestore
+            event_payload = {
+                "event_id": str(doc_id),
+                "timestamp": timestamp,
+                "source_agent": str(security_event.get("source_agent", "ShoppingAgent")),
+                "target_agent": str(security_event.get("target_agent", "PaymentAgent")),
+                "tool": str(security_event.get("tool", "")),
+                "decision": str(security_event.get("decision", "UNKNOWN")),
+                "risk_score": int(security_event.get("risk_score", 0)),
+                "risk_level": str(security_event.get("risk_level", "LOW")),
+                "authorized": bool(security_event.get("authorized", True)),
+                "threats": [str(t) for t in security_event.get("threats", [])],
+                "gemini_analysis": str(security_event.get("gemini_analysis", ""))
+            }
 
-        # Save event payload to Firestore
-        document.set(security_event)
+            self.collection.document(str(doc_id)).set(event_payload)
+            print(f"[FirestoreLogger] Successfully logged event: {doc_id}")
+            return str(doc_id)
 
-        # Return the document ID
-        return document.id
+        except Exception as error:
+            print(f"[FirestoreLogger] Error writing event: {error}")
+            return False
 
     def get_recent_events(self, limit=50):
         """
         Retrieve the latest security logs from Firestore for audit dashboards.
         """
+        if self.collection is None:
+            return []
+
         try:
             docs = (
                 self.collection
