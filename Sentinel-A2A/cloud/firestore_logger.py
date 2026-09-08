@@ -50,7 +50,7 @@ class FirestoreLogger:
 
         if self.db is not None:
             self.collection = self.db.collection("security_events")
-            print("[FirestoreLogger] Connected to Firestore.")
+            print("[FirestoreLogger] Connected successfully to Firestore.")
         else:
             print("[FirestoreLogger] WARNING: Unconfigured mode. Events will NOT save.")
 
