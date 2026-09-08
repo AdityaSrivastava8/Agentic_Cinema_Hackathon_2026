@@ -19,6 +19,7 @@ class FirestoreLogger:
         self.project_id = project_id or os.getenv("GOOGLE_CLOUD_PROJECT")
         self.db = None
         self.collection = None
+        self.connection_error = None  # human-readable reason if connection failed
 
         # 1. First priority: Streamlit secrets
         if hasattr(st, "secrets"):
@@ -37,7 +38,13 @@ class FirestoreLogger:
                     self.project_id = self.project_id or key_dict.get("project_id")
                     self.db = firestore.Client(credentials=creds, project=self.project_id)
                 except Exception as e:
+                    self.connection_error = f"Streamlit secrets init failed: {e}"
                     print(f"Firestore secret initialization failed (logger): {e}")
+            else:
+                self.connection_error = (
+                    "No matching key found in st.secrets "
+                    "(expected 'textkey', 'firestore', or 'gcp_service_account')"
+                )
 
         # 2. Second priority: standard GCP Application Default Credentials
         if self.db is None:
@@ -46,7 +53,10 @@ class FirestoreLogger:
                     self.db = firestore.Client(project=self.project_id)
                 else:
                     self.db = firestore.Client()
+                self.connection_error = None
             except Exception as e:
+                if self.connection_error is None:
+                    self.connection_error = f"ADC initialization failed: {e}"
                 print(f"GCP default initialization failed (logger): {e}")
 
         # Initialize collection if connection succeeded
@@ -55,12 +65,16 @@ class FirestoreLogger:
         else:
             print("FirestoreLogger is running in unconfigured fallback mode.")
 
+    @property
+    def is_connected(self):
+        return self.collection is not None
+
     def log_event(self, event):
         """
         Write a single security event dict to Firestore.
 
         Returns the new document ID on success, or None if logging is
-        unavailable / fails (the caller decides how to surface that).
+        unavailable / fails.
         """
         if self.collection is None:
             return None
