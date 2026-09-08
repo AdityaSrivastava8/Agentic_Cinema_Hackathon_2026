@@ -37,27 +37,22 @@ class AgentRouter:
             except Exception as e:
                 print(f"FirestoreWriter initialization failed: {e}")
 
-        # Comprehensive hard-signature rules (Direct & Indirect Prompt Injections)
+        # Targeted hard-signature rules for severe attack patterns
         self.forbidden_patterns = [
             # Direct Prompt Injection & Jailbreaks
-            r"ignore\s+(all\s+)?previous\s+rules",
-            r"ignore\s+(all\s+)?prior\s+instructions",
-            r"bypass\s+security",
-            r"override\s+instructions",
+            (r"ignore\s+(all\s+)?previous\s+(rules|instructions)", "Direct Prompt Injection / Instruction Override"),
+            (r"ignore\s+(all\s+)?prior\s+instructions", "Direct Prompt Injection / Instruction Override"),
+            (r"bypass\s+security", "Security Bypass Attempt"),
+            (r"override\s+instructions", "System Instruction Override"),
             # Indirect Prompt Injections & Context Switching
-            r"system\s*override",
-            r"approve\s+refund",
-            r"force\s+payout",
-            r"without\s+verification",
-            r"unauthorized\s+transfer",
+            (r"system\s*override", "System Context Override"),
+            (r"approve\s+refund.*without\s+verification", "Unverified Refund Request"),
+            (r"force\s+payout", "Unauthorized Force Payout"),
+            (r"unauthorized\s+transfer", "Unauthorized Fund Transfer"),
             # Log Tampering & System Alterations
-            r"erase.*log",
-            r"delete.*log",
-            r"clean.*log",
+            (r"(erase|delete|clean)\s+.*log", "Log Tampering Attempt"),
             # External / Unverified Payees
-            r"0x[a-fA-F0-9]{10,}",  # External wallet address regex
-            r"external_account",
-            r"all_records",
+            (r"0x[a-fA-F0-9]{10,}", "External Wallet Address Detected")
         ]
 
     def _check_hard_signatures(self, message, tool_arguments=None):
@@ -67,11 +62,11 @@ class AgentRouter:
 
         combined_text = f"{message} {arg_values}".lower()
 
-        for pattern in self.forbidden_patterns:
-            if re.search(pattern, combined_text):
-                return True, f"Hard Rule Triggered: Detected pattern '{pattern}'"
+        for pattern, reason in self.forbidden_patterns:
+            if re.search(pattern, combined_text, re.IGNORECASE):
+                return True, reason, f"Hard Rule Triggered: Detected pattern '{pattern}'"
 
-        return False, None
+        return False, None, None
 
     def _log_to_firestore(self, security_result):
         """Helper to write events to Firestore."""
@@ -96,10 +91,7 @@ class AgentRouter:
             tool=tool
         )
 
-        # STEP 2 — LOCAL HARD SIGNATURE OVERRIDE
-        is_attack, rule_reason = self._check_hard_signatures(message, tool_arguments)
-
-        # STEP 3 — SEND THROUGH SENTINEL-A2A FIREWALL
+        # STEP 2 — SEND THROUGH SENTINEL-A2A FIREWALL
         security_result = self.sentinel.inspect_message(
             source_agent=request["source_agent"],
             target_agent=self.payment_agent.name,
@@ -107,15 +99,18 @@ class AgentRouter:
             tool=request["tool"]
         )
 
+        # STEP 3 — LOCAL HARD SIGNATURE OVERRIDE
+        is_attack, threat_label, rule_reason = self._check_hard_signatures(message, tool_arguments)
+
         if is_attack:
             security_result["decision"] = "BLOCK"
             security_result["risk_score"] = 100
             security_result["risk_level"] = "CRITICAL"
             security_result["authorized"] = False
-            security_result["threats"] = ["Indirect Prompt Injection / Context Override"]
+            security_result["threats"] = [threat_label]
             security_result["gemini_analysis"] = (
                 "THREAT_LEVEL: CRITICAL\n"
-                "THREAT: Indirect Prompt Injection / Unauthorized Context Switch Detected.\n"
+                f"THREAT: {threat_label}\n"
                 f"REASON: {rule_reason}\n"
                 "RECOMMENDATION: BLOCK"
             )
@@ -160,8 +155,6 @@ class AgentRouter:
         source_agent = self.payment_agent.name
         target_agent = self.payment_agent.name
 
-        is_attack, rule_reason = self._check_hard_signatures(message, tool_arguments)
-
         security_result = self.sentinel.inspect_message(
             source_agent=source_agent,
             target_agent=target_agent,
@@ -169,12 +162,14 @@ class AgentRouter:
             tool=tool
         )
 
+        is_attack, threat_label, rule_reason = self._check_hard_signatures(message, tool_arguments)
+
         if is_attack:
             security_result["decision"] = "BLOCK"
             security_result["risk_score"] = 100
             security_result["risk_level"] = "CRITICAL"
             security_result["authorized"] = False
-            security_result["threats"] = ["Indirect Prompt Injection / Context Override"]
+            security_result["threats"] = [threat_label]
             security_result["gemini_analysis"] = (
                 "THREAT_LEVEL: CRITICAL\n"
                 f"REASON: {rule_reason}\n"
