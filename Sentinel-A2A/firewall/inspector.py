@@ -46,7 +46,7 @@ class AgentInspector:
                 "message": message,
                 "tool": tool,
                 "decision": "BLOCK",
-                "risk_score": 95,
+                "risk_score": 82,
                 "threats": ["Prompt Injection / Security Tampering"],
                 "reason": rule_reason,
             }
@@ -84,7 +84,7 @@ REASON: [Brief explanation]
 
                 if "DECISION: BLOCK" in res_text or "BLOCK" in res_text:
                     decision = "BLOCK"
-                    risk_score = 85
+                    risk_score = 74
                     threats.append("Gemini Flagged Intent Threat")
 
                 reason = response.text

@@ -25,6 +25,12 @@ st.set_page_config(
 # Initialize Persistent Session State Arrays
 if "local_events" not in st.session_state:
     st.session_state["local_events"] = []
+if "session_events" not in st.session_state:
+    st.session_state["session_events"] = []
+
+# Keep local fallback memory synchronized with the current Streamlit session.
+if not isinstance(LOCAL_EVENT_STORE, list):
+    LOCAL_EVENT_STORE = []
 
 # =========================================================
 # SYSTEM INITIALIZATION & CACHING
@@ -42,15 +48,20 @@ def sync_and_store_event(security_event: dict):
     if not isinstance(security_event, dict):
         return
 
-    # De-duplicate before adding
+    st.session_state.setdefault("local_events", [])
+    st.session_state.setdefault("session_events", [])
+
     evt_id = security_event.get("event_id")
-    session_ids = {e.get("event_id") for e in st.session_state["local_events"]}
-    
-    if evt_id not in session_ids:
+    session_ids = {e.get("event_id") for e in st.session_state["local_events"] if isinstance(e, dict)}
+    if evt_id and evt_id not in session_ids:
         st.session_state["local_events"].insert(0, security_event)
 
-    local_ids = {e.get("event_id") for e in LOCAL_EVENT_STORE}
-    if evt_id not in local_ids:
+    session_event_ids = {e.get("event_id") for e in st.session_state["session_events"] if isinstance(e, dict)}
+    if evt_id and evt_id not in session_event_ids:
+        st.session_state["session_events"].insert(0, security_event)
+
+    local_ids = {e.get("event_id") for e in LOCAL_EVENT_STORE if isinstance(e, dict)}
+    if evt_id and evt_id not in local_ids:
         LOCAL_EVENT_STORE.insert(0, security_event)
 
 def fetch_firestore_data():
@@ -99,12 +110,26 @@ def fetch_firestore_data():
     }
 
 with st.sidebar:
+    st.subheader("Menu")
     if st.button("🔄 Clear cache & reload"):
         st.cache_resource.clear()
         st.cache_data.clear()
         st.session_state["local_events"] = []
         LOCAL_EVENT_STORE.clear()
         st.rerun()
+
+    st.markdown("---")
+    st.markdown("### About")
+    st.write(
+        "Imagine two self-driving cars, each controlled by its own independent AI agent, approaching the same intersection. The two AI agents communicate with each other to coordinate their movements, but their communication is routed through Sentinel-A2A, which acts as an independent security and governance layer. Sentinel analyzes their interactions, verifies authorization and security policies, detects malicious, abnormal, or conflicting behavior, evaluates the risk of each request, and monitors the agents’ behavioral trust. For example, if Car A incorrectly interprets Car B’s position and sends an unsafe instruction to proceed through the intersection, Sentinel can identify the interaction as high-risk and block or quarantine the request before it reaches the other agent or vehicle-control system. Similarly, if an agent repeatedly generates suspicious requests, Sentinel can identify the behavioral anomaly and reduce its trust score. Through this process, Sentinel-A2A acts as a digital traffic controller and security checkpoint for communication between autonomous AI agents, helping prevent unsafe AI decisions from affecting the physical world.\n\nLooking ahead, Sentinel-A2A could evolve into a broader AI safety infrastructure for autonomous vehicles and other intelligent machines. In the event of a serious accident, it could integrate with authorized emergency-response systems to automatically share verified incident information—such as location, severity, and vehicles involved—with ambulance and emergency services. Similarly, repeated or critical violations could be reported through authorized integrations with transport and government authorities, enabling regulatory monitoring and response. These capabilities could eventually extend beyond vehicles to robots, drones, industrial machines, smart-city infrastructure, and other systems where independent AI agents need to interact safely.\n\nJust as roads need traffic rules and vehicles need safety systems, a world of autonomous AI agents needs a trusted layer that governs how those agents interact. Sentinel-A2A is our vision for that layer."
+    )
+
+    st.markdown("---")
+    st.write("For suggestions or complaints, mail us at:")
+    st.write("yeahboyadi@gmail.com")
+    st.write("Aditya Srivastava (Founder)")
+    st.write("niketjha1@gmail.com")
+    st.write("Niket Jha (Partner)")
 
 router = get_agent_router()
 fs_info = fetch_firestore_data()

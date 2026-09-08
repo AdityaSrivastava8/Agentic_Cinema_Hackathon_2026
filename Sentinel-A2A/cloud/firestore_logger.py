@@ -74,12 +74,21 @@ class FirestoreLogger:
         if "event_id" not in payload:
             payload["event_id"] = str(uuid.uuid4())
 
-        # Save to local session stores unconditionally
-        LOCAL_EVENT_STORE.insert(0, payload)
+        # Save to local session stores unconditionally and persist them across reruns.
+        event_id = payload.get("event_id")
         if hasattr(st, "session_state"):
+            if "local_events" not in st.session_state:
+                st.session_state["local_events"] = []
             if "session_events" not in st.session_state:
                 st.session_state["session_events"] = []
-            st.session_state["session_events"].insert(0, payload)
+
+            if not any(existing.get("event_id") == event_id for existing in st.session_state["local_events"]):
+                st.session_state["local_events"].insert(0, payload)
+            if not any(existing.get("event_id") == event_id for existing in st.session_state["session_events"]):
+                st.session_state["session_events"].insert(0, payload)
+
+        if not any(existing.get("event_id") == event_id for existing in LOCAL_EVENT_STORE):
+            LOCAL_EVENT_STORE.insert(0, payload)
 
         # Attempt Cloud Firestore Write
         if self.collection is not None:

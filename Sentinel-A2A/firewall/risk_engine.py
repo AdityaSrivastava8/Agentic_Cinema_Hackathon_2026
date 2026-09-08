@@ -67,28 +67,38 @@ class RiskEngine:
         """
         Calculates risk score based on the primary threat severity,
         with diminishing contributions from secondary threats.
-        Guarantees distinct scores strictly below 100.
+        Guarantees distinct scores strictly below 95.
         """
         if not threats:
             return 10  # Low baseline score for clean messages
 
-        scores = [self._match_threat_score(threat) for threat in threats]
+        seen = []
+        for threat in threats:
+            if not threat:
+                continue
+            if threat not in seen:
+                seen.append(threat)
+
+        if not seen:
+            return 10
+
+        scores = [self._match_threat_score(threat) for threat in seen]
         scores.sort(reverse=True)
 
-        # Primary threat sets base anchor
         primary_score = scores[0]
+        secondary_addon = 0.0
 
-        # Diminishing additive model for secondary threats (max +2 to +4 points each)
-        multiplier = 0.05
-        secondary_addon = 0
-        for s in scores[1:]:
-            secondary_addon += s * multiplier
-            multiplier *= 0.5  # Rapid falloff for tertiary threats
+        # Diminishing contributions from lower-severity indicators.
+        # Keep the model additive but non-saturating and realistic.
+        for index, score in enumerate(scores[1:], start=1):
+            weight = 0.18 if index == 1 else 0.10 if index == 2 else 0.05
+            secondary_addon += score * weight
 
         final_score = primary_score + round(secondary_addon, 2)
 
-        # Cap below 95 to allow headroom and prevent false 100/100 saturation
-        return round(min(92.0, max(10.0, final_score)), 2)
+        # Cap below 95 to keep the score meaningful while still allowing
+        # severe attacks to appear critically dangerous.
+        return round(min(94.0, max(10.0, final_score)), 2)
 
     def get_risk_level(self, risk_score):
         """

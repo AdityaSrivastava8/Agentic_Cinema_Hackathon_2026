@@ -113,11 +113,13 @@ class SecurityResponseEngine:
         trust_penalty = max(0.0, (100.0 - trust_score) * 0.20)
         risk += trust_penalty
 
-        # Dedicated penalization for unauthorized requests
+        # Explicitly avoid a hard 100-cap or forced override.
+        # Unauthorized access should be a real risk signal without collapsing all
+        # results to a saturated score.
         if not authorized:
-            risk += 35.0
+            risk += 20.0
 
-        return round(min(max(risk, 0.0), 100.0), 2)
+        return round(min(max(risk, 0.0), 94.0), 2)
 
     def decide(
         self,

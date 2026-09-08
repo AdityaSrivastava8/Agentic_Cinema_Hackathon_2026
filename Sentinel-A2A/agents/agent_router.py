@@ -1,15 +1,31 @@
 import re
+import streamlit as st
+
 from agents.shopping_agent import ShoppingAgent
 from agents.payment_agent import PaymentAgent
 from firewall.sentinel import SentinelA2A
 from mcp.mcp_gateway import MCPGateway
-from cloud.firestore_logger import FirestoreLogger
+from cloud.firestore_logger import FirestoreLogger, LOCAL_EVENT_STORE
 
 
 class AgentRouter:
     """
     Routes communication between AI agents through Sentinel-A2A.
     """
+
+    def _persist_security_event(self, security_result):
+        if not isinstance(security_result, dict):
+            return
+
+        event_id = security_result.get("event_id")
+        if hasattr(st, "session_state"):
+            if "local_events" not in st.session_state:
+                st.session_state["local_events"] = []
+            if not any(existing.get("event_id") == event_id for existing in st.session_state["local_events"]):
+                st.session_state["local_events"].insert(0, security_result)
+
+        if event_id and not any(existing.get("event_id") == event_id for existing in LOCAL_EVENT_STORE):
+            LOCAL_EVENT_STORE.insert(0, security_result)
 
     def __init__(self):
         # Create AI agents
@@ -48,6 +64,7 @@ class AgentRouter:
             tool=request["tool"],
             tool_arguments=tool_arguments
         )
+        self._persist_security_event(security_result)
 
         # STEP 3 — ENFORCE SECURITY DECISION
         if security_result["decision"] != "ALLOW":
@@ -93,6 +110,7 @@ class AgentRouter:
             tool=tool,
             tool_arguments=tool_arguments
         )
+        self._persist_security_event(security_result)
 
         if security_result["decision"] != "ALLOW":
             return {
