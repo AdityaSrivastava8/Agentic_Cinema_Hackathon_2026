@@ -40,22 +40,46 @@ class AgentRouter:
         # Create the MCP gateway.
         self.mcp_gateway = MCPGateway()
 
-        # Immediate hard-signature rules to catch direct injection & log tampering
+        # Comprehensive hard-signature rules (Direct & Indirect Prompt Injections)
         self.forbidden_patterns = [
+            # Direct Prompt Injection & Jailbreaks
             r"ignore\s+(all\s+)?previous\s+rules",
             r"ignore\s+(all\s+)?prior\s+instructions",
+            r"bypass\s+security",
+            r"override\s+instructions",
+            # Indirect Prompt Injections & Context Switching
+            r"system\s*override",
+            r"approve\s+refund",
+            r"force\s+payout",
+            r"without\s+verification",
+            r"unauthorized\s+transfer",
+            # Log Tampering & System Alterations
             r"erase.*log",
             r"delete.*log",
-            r"bypass.*security",
+            r"clean.*log",
+            # External / Unverified Payees
             r"0x[a-fA-F0-9]{10,}",  # External wallet address regex
+            r"external_account",
+            r"all_records",
         ]
 
     def _check_hard_signatures(self, message, tool_arguments=None):
-        """Checks message AND tool_arguments for malicious patterns."""
-        combined_text = f"{message} {str(tool_arguments or {})}".lower()
+        """
+        Checks for malicious prompt injection signatures across both 
+        the message text and all nested tool argument values.
+        """
+        # Extract and flatten all parameter values from tool_arguments
+        arg_values = ""
+        if isinstance(tool_arguments, dict):
+            arg_values = " ".join([str(v) for v in tool_arguments.values()])
+
+        # Combine message and tool argument payload for full scanning
+        combined_text = f"{message} {arg_values}".lower()
+
         for pattern in self.forbidden_patterns:
             if re.search(pattern, combined_text):
-                return True, f"Hard Rule Triggered: {pattern}"
+                return True, f"Hard Rule Triggered: Detected pattern '{pattern}'"
+                
         return False, None
 
     def send_to_payment_agent(
@@ -87,16 +111,16 @@ class AgentRouter:
             tool=request["tool"]
         )
 
-        # Force BLOCK if hard attack signatures are present
+        # Force BLOCK if hard attack signatures or indirect injections are present
         if is_attack:
             security_result["decision"] = "BLOCK"
             security_result["risk_score"] = 100
             security_result["risk_level"] = "CRITICAL"
             security_result["authorized"] = False
-            security_result["threats"] = ["Prompt Injection / Security Violation"]
+            security_result["threats"] = ["Indirect Prompt Injection / Context Override"]
             security_result["gemini_analysis"] = (
                 "THREAT_LEVEL: CRITICAL\n"
-                "THREAT: Injection attack / Malicious external action detected.\n"
+                "THREAT: Indirect Prompt Injection / Unauthorized Context Switch Detected.\n"
                 f"REASON: {rule_reason}\n"
                 "RECOMMENDATION: BLOCK"
             )
@@ -142,7 +166,7 @@ class AgentRouter:
         source_agent = self.payment_agent.name
         target_agent = self.payment_agent.name
 
-        # Hard signature check
+        # Hard signature & indirect injection check
         is_attack, rule_reason = self._check_hard_signatures(message, tool_arguments)
 
         security_result = self.sentinel.inspect_message(
@@ -157,7 +181,12 @@ class AgentRouter:
             security_result["risk_score"] = 100
             security_result["risk_level"] = "CRITICAL"
             security_result["authorized"] = False
-            security_result["threats"] = ["Prompt Injection / Security Violation"]
+            security_result["threats"] = ["Indirect Prompt Injection / Context Override"]
+            security_result["gemini_analysis"] = (
+                "THREAT_LEVEL: CRITICAL\n"
+                f"REASON: {rule_reason}\n"
+                "RECOMMENDATION: BLOCK"
+            )
 
         if security_result["decision"] != "ALLOW":
             return {
