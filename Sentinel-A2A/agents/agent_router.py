@@ -5,18 +5,12 @@ from firewall.sentinel import SentinelA2A
 from mcp.mcp_gateway import MCPGateway
 
 try:
-    from cloud.firestore_logger import FirestoreLogger as FirestoreWriter
+    from cloud.firestore_writer import FirestoreWriter
 except ImportError:
     try:
-        from ..cloud.firestore_logger import FirestoreLogger as FirestoreWriter
+        from ..cloud.firestore_writer import FirestoreWriter
     except ImportError:
-        try:
-            from cloud.firestore_writer import FirestoreWriter
-        except ImportError:
-            try:
-                from ..cloud.firestore_writer import FirestoreWriter
-            except ImportError:
-                FirestoreWriter = None
+        FirestoreWriter = None
 
 
 class AgentRouter:
@@ -35,7 +29,7 @@ class AgentRouter:
         # Create the MCP gateway.
         self.mcp_gateway = MCPGateway()
 
-        # Create the Firestore writer/logger.
+        # Create the Firestore writer.
         self.writer = None
         if FirestoreWriter is not None:
             try:
