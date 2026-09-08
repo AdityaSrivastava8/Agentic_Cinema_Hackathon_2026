@@ -36,9 +36,9 @@ class FirestoreLogger:
                     self.project_id = self.project_id or key_dict.get("project_id")
                     self.db = firestore.Client(credentials=creds, project=self.project_id)
                 except Exception as e:
-                    print(f"[FirestoreLogger] Secrets init failed: {e}")
+                    print(f"[FirestoreLogger] Secrets initialization failed: {e}")
 
-        # 2. GCP Default Credentials Fallback
+        # 2. Default GCP Application Credentials Fallback
         if self.db is None:
             try:
                 if self.project_id:
@@ -46,20 +46,22 @@ class FirestoreLogger:
                 else:
                     self.db = firestore.Client()
             except Exception as e:
-                print(f"[FirestoreLogger] GCP default init failed: {e}")
+                print(f"[FirestoreLogger] GCP default initialization failed: {e}")
 
+        # Initialize target collection if connection succeeded
         if self.db is not None:
             self.collection = self.db.collection("security_events")
-            print("[FirestoreLogger] Connected successfully to Firestore.")
+            print("[FirestoreLogger] Successfully connected to Firestore.")
         else:
-            print("[FirestoreLogger] WARNING: Unconfigured mode. Events will NOT save.")
+            print("[FirestoreLogger] WARNING: Unconfigured fallback mode. Events will NOT save.")
 
     def log_event(self, security_event):
         """
         Save one Sentinel-A2A security event to Firestore.
+        Uses event_id as the document ID if present, otherwise auto-generates one.
         """
         if self.collection is None:
-            print("[FirestoreLogger] Cannot log event: Client not connected.")
+            print("[FirestoreLogger] Cannot log event: Firestore client not connected.")
             return False
 
         if not isinstance(security_event, dict):
@@ -68,12 +70,13 @@ class FirestoreLogger:
         try:
             doc_id = security_event.get("event_id") or str(uuid.uuid4())
             
-            timestamp = security_event.get("timestamp")
-            if not timestamp:
+            # Ensure timestamp is string formatted
+            if "timestamp" not in security_event or not security_event["timestamp"]:
                 timestamp = datetime.now(timezone.utc).isoformat()
             else:
-                timestamp = str(timestamp)
+                timestamp = str(security_event["timestamp"])
 
+            # Sanitize keys and values for Firestore
             event_payload = {
                 "event_id": str(doc_id),
                 "timestamp": timestamp,
@@ -89,7 +92,7 @@ class FirestoreLogger:
             }
 
             self.collection.document(str(doc_id)).set(event_payload)
-            print(f"[FirestoreLogger] Logged event successfully: {doc_id}")
+            print(f"[FirestoreLogger] Successfully logged event: {doc_id}")
             return str(doc_id)
 
         except Exception as error:
@@ -97,10 +100,19 @@ class FirestoreLogger:
             return False
 
     def get_recent_events(self, limit=50):
+        """
+        Retrieve the latest security logs from Firestore for audit dashboards.
+        """
         if self.collection is None:
             return []
+
         try:
-            docs = self.collection.limit(limit).stream()
+            docs = (
+                self.collection
+                .order_by("timestamp", direction=firestore.Query.DESCENDING)
+                .limit(limit)
+                .stream()
+            )
             return [doc.to_dict() for doc in docs]
         except Exception as error:
             print(f"[FirestoreLogger] Error retrieving logs: {error}")
