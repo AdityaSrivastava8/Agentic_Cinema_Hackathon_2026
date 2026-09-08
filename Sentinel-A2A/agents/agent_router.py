@@ -1,7 +1,7 @@
 import os
 import sys
 
-# Ensure Sentinel-A2A root directory is at index 0 of sys.path BEFORE package imports
+# Ensure Sentinel-A2A project root is at the front of sys.path
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))  # agents/
 PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))  # Sentinel-A2A/
 
@@ -10,11 +10,20 @@ if PROJECT_ROOT in sys.path:
 sys.path.insert(0, PROJECT_ROOT)
 
 import re
-from agents.shopping_agent import ShoppingAgent
-from agents.payment_agent import PaymentAgent
-from firewall.sentinel import SentinelA2A
-from mcp.mcp_gateway import MCPGateway
-from cloud.firestore_writer import FirestoreWriter
+
+# Flexible internal imports (handles both top-level root and package contexts)
+try:
+    from agents.shopping_agent import ShoppingAgent
+    from agents.payment_agent import PaymentAgent
+    from firewall.sentinel import SentinelA2A
+    from mcp.mcp_gateway import MCPGateway
+    from cloud.firestore_writer import FirestoreWriter
+except ModuleNotFoundError:
+    from shopping_agent import ShoppingAgent
+    from payment_agent import PaymentAgent
+    from firewall.sentinel import SentinelA2A
+    from mcp.mcp_gateway import MCPGateway
+    from cloud.firestore_writer import FirestoreWriter
 
 
 class AgentRouter:
