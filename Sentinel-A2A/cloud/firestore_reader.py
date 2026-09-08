@@ -15,7 +15,7 @@ class FirestoreReader:
         self.db = None
         self.collection = None
 
-        # 1. Streamlit secrets
+        # 1. Streamlit Secrets Integration
         if hasattr(st, "secrets"):
             secret_key = None
             for key in ["textkey", "firestore", "gcp_service_account"]:
@@ -48,18 +48,19 @@ class FirestoreReader:
 
         if self.db is not None:
             self.collection = self.db.collection("security_events")
-            print("[FirestoreReader] Connected to Firestore.")
+            print("[FirestoreReader] Connected successfully to Firestore.")
+        else:
+            print("[FirestoreReader] WARNING: Client unconfigured.")
 
     def get_recent_events(self, limit=50):
         """
-        Retrieves security logs from Firestore.
-        Uses fallback query if timestamp ordering fails.
+        Retrieves security logs from Firestore with unindexed ordering fallbacks.
         """
         if self.collection is None:
             return []
 
+        # Primary Query Attempt (Requires Timestamp Index)
         try:
-            # First attempt: ordered by timestamp
             docs = (
                 self.collection
                 .order_by("timestamp", direction=firestore.Query.DESCENDING)
@@ -74,8 +75,11 @@ class FirestoreReader:
 
             if events:
                 return events
+        except Exception as error:
+            print(f"[FirestoreReader] Ordered query failed (likely index missing): {error}")
 
-            # Fallback attempt: fetch without order_by in case timestamps are unindexed
+        # Fallback Query Attempt (Unordered stream + Python in-memory sort)
+        try:
             docs = self.collection.limit(limit).stream()
             events = []
             for doc in docs:
@@ -83,17 +87,8 @@ class FirestoreReader:
                 data["document_id"] = doc.id
                 events.append(data)
 
-            # Manual in-memory sort if timestamp field exists
             events.sort(key=lambda x: str(x.get("timestamp", "")), reverse=True)
             return events
-
-        except Exception as error:
-            print(f"[FirestoreReader] Error reading logs: {error}")
-            try:
-                # Direct fallback query on exception
-                docs = self.collection.limit(limit).stream()
-                events = [doc.to_dict() for doc in docs]
-                return events
-            except Exception as e:
-                print(f"[FirestoreReader] Critical fallback failed: {e}")
-                return [] 
+        except Exception as fallback_error:
+            print(f"[FirestoreReader] Fallback fetch failed: {fallback_error}")
+            return [] 
