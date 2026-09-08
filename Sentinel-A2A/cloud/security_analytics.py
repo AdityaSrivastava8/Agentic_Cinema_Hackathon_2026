@@ -21,125 +21,104 @@ class SecurityAnalytics:
         """
         Count ALLOW, QUARANTINE and BLOCK decisions.
         """
-
         decisions = [
-            event.get("decision", "UNKNOWN")
+            event.get("decision", "UNKNOWN") if event else "UNKNOWN"
             for event in self.events
         ]
-
         return dict(Counter(decisions))
 
     def risk_level_counts(self):
         """
         Count events by risk level.
         """
-
         risk_levels = [
-            event.get("risk_level", "UNKNOWN")
+            event.get("risk_level", "UNKNOWN") if event else "UNKNOWN"
             for event in self.events
         ]
-
         return dict(Counter(risk_levels))
 
     def blocked_count(self):
         """
         Return the number of blocked requests.
         """
-
         return sum(
             1
             for event in self.events
-            if event.get("decision") == "BLOCK"
+            if isinstance(event, dict) and event.get("decision") == "BLOCK"
         )
 
     def quarantined_count(self):
         """
         Return the number of quarantined requests.
         """
-
         return sum(
             1
             for event in self.events
-            if event.get("decision") == "QUARANTINE"
+            if isinstance(event, dict) and event.get("decision") == "QUARANTINE"
         )
 
     def allowed_count(self):
         """
         Return the number of allowed requests.
         """
-
         return sum(
             1
             for event in self.events
-            if event.get("decision") == "ALLOW"
+            if isinstance(event, dict) and event.get("decision") == "ALLOW"
         )
 
     def high_risk_count(self):
         """
-        Count HIGH-risk security events.
+        Count HIGH and CRITICAL-risk security events.
         """
-
         return sum(
             1
             for event in self.events
-            if event.get("risk_level") == "HIGH"
+            if isinstance(event, dict) and event.get("risk_level") in ["HIGH", "CRITICAL"]
         )
 
     def tool_activity(self):
         """
         Find which MCP tools are being requested most often.
         """
-
         tools = [
-            event.get("tool", "Unknown")
+            event.get("tool") or "Unknown"
             for event in self.events
+            if isinstance(event, dict)
         ]
-
-        return dict(
-            Counter(tools).most_common()
-        )
+        return dict(Counter(tools).most_common())
 
     def agent_activity(self):
         """
         Find which source agents generate the most traffic.
         """
-
         agents = [
-            event.get("source_agent", "Unknown")
+            event.get("source_agent") or "Unknown"
             for event in self.events
+            if isinstance(event, dict)
         ]
-
-        return dict(
-            Counter(agents).most_common()
-        )
+        return dict(Counter(agents).most_common())
 
     def average_risk_score(self):
         """
         Calculate the average risk score.
         """
-
         scores = [
             event.get("risk_score", 0)
             for event in self.events
-            if isinstance(
-                event.get("risk_score"),
-                (int, float)
-            )
+            if isinstance(event, dict)
+            and isinstance(event.get("risk_score"), (int, float))
         ]
 
         if not scores:
-            return 0
+            return 0.0
 
-        return round(
-            sum(scores) / len(scores),
-            2
-        )
+        return round(sum(scores) / len(scores), 2)
 
     def summary(self):
         """
-        Return a complete security analytics summary.
+        Return a complete security analytics summary dictionary.
         """
-
         return {
             "total_events": self.total_events(),
             "allowed": self.allowed_count(),
