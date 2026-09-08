@@ -1,25 +1,26 @@
 import json
 import os
+import uuid
 
 import streamlit as st
 from google.cloud import firestore
 from google.oauth2 import service_account
 
+# Shared in-memory event store for local UI testing fallback
+LOCAL_EVENT_STORE = []
+
 
 class FirestoreLogger:
     """
-    Writes Sentinel-A2A security events to Google Cloud Firestore.
-
-    Uses the SAME credential resolution order as FirestoreReader so that
-    logging (writes) and the dashboard (reads) always talk to the same
-    Firestore project with the same credentials.
+    Writes Sentinel-A2A security events to Google Cloud Firestore, while maintaining
+    a local in-memory event list as a fallback when Firestore is disconnected.
     """
 
     def __init__(self, project_id=None):
         self.project_id = project_id or os.getenv("GOOGLE_CLOUD_PROJECT")
         self.db = None
         self.collection = None
-        self.connection_error = None  # human-readable reason if connection failed
+        self.connection_error = None
 
         # 1. First priority: Streamlit secrets
         if hasattr(st, "secrets"):
@@ -39,14 +40,13 @@ class FirestoreLogger:
                     self.db = firestore.Client(credentials=creds, project=self.project_id)
                 except Exception as e:
                     self.connection_error = f"Streamlit secrets init failed: {e}"
-                    print(f"Firestore secret initialization failed (logger): {e}")
             else:
                 self.connection_error = (
                     "No matching key found in st.secrets "
                     "(expected 'textkey', 'firestore', or 'gcp_service_account')"
                 )
 
-        # 2. Second priority: standard GCP Application Default Credentials
+        # 2. Second priority: standard GCP Application Default Credentials / Project ID
         if self.db is None:
             try:
                 if self.project_id:
@@ -57,13 +57,10 @@ class FirestoreLogger:
             except Exception as e:
                 if self.connection_error is None:
                     self.connection_error = f"ADC initialization failed: {e}"
-                print(f"GCP default initialization failed (logger): {e}")
 
         # Initialize collection if connection succeeded
         if self.db is not None:
             self.collection = self.db.collection("security_events")
-        else:
-            print("FirestoreLogger is running in unconfigured fallback mode.")
 
     @property
     def is_connected(self):
@@ -71,17 +68,26 @@ class FirestoreLogger:
 
     def log_event(self, event):
         """
-        Write a single security event dict to Firestore.
-
-        Returns the new document ID on success, or None if logging is
-        unavailable / fails.
+        Write a single security event dict to local fallback memory and Firestore (if available).
         """
-        if self.collection is None:
+        if not isinstance(event, dict):
             return None
-        try:
-            doc_ref = self.collection.document()
-            doc_ref.set(event)
-            return doc_ref.id
-        except Exception as e:
-            print(f"Error logging event to Firestore: {e}")
-            return None 
+
+        event_id = event.get("event_id") or str(uuid.uuid4())
+        event["event_id"] = event_id
+
+        # Always append to local in-memory store so UI updates immediately
+        if not any(e.get("event_id") == event_id for e in LOCAL_EVENT_STORE):
+            LOCAL_EVENT_STORE.append(event)
+
+        # Write to Google Cloud Firestore if connected
+        if self.collection is not None:
+            try:
+                doc_ref = self.collection.document(event_id)
+                doc_ref.set(event)
+                return doc_ref.id
+            except Exception as e:
+                print(f"Error logging event to Firestore: {e}")
+                return f"LOCAL_{event_id}"
+
+        return f"LOCAL_{event_id}" 
