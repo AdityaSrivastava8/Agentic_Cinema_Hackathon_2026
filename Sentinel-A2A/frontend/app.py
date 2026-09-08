@@ -274,4 +274,4 @@ if st.button("🛡️ Inspect Request", use_container_width=True):
             st.metric("Decision", security["decision"])
 
         st.caption(f'Event ID: {security.get("event_id", "N/A")}')
-        st.caption(f'Timestamp: 
+        st.caption(f'Timestamp: {security.get("timestamp", "N/A")}')
