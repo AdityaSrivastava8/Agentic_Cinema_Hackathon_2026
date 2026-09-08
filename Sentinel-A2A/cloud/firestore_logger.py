@@ -1,19 +1,19 @@
-import json
 import os
+import json
 import uuid
-
+from datetime import datetime, timezone
 import streamlit as st
 from google.cloud import firestore
 from google.oauth2 import service_account
 
-# Shared in-memory event store for local UI testing fallback
+# Global module fallback
 LOCAL_EVENT_STORE = []
 
 
 class FirestoreLogger:
     """
-    Writes Sentinel-A2A security events to Google Cloud Firestore, while maintaining
-    a local in-memory event list as a fallback when Firestore is disconnected.
+    Logs Sentinel-A2A security events to Google Cloud Firestore or
+    falls back to Streamlit session_state / local memory.
     """
 
     def __init__(self, project_id=None):
@@ -22,7 +22,11 @@ class FirestoreLogger:
         self.collection = None
         self.connection_error = None
 
-        # 1. First priority: Streamlit secrets
+        # Initialize Session State array if available
+        if hasattr(st, "session_state") and "session_events" not in st.session_state:
+            st.session_state["session_events"] = []
+
+        # 1. Streamlit secrets priority
         if hasattr(st, "secrets"):
             secret_key = None
             for key in ["textkey", "firestore", "gcp_service_account"]:
@@ -40,13 +44,8 @@ class FirestoreLogger:
                     self.db = firestore.Client(credentials=creds, project=self.project_id)
                 except Exception as e:
                     self.connection_error = f"Streamlit secrets init failed: {e}"
-            else:
-                self.connection_error = (
-                    "No matching key found in st.secrets "
-                    "(expected 'textkey', 'firestore', or 'gcp_service_account')"
-                )
 
-        # 2. Second priority: standard GCP Application Default Credentials / Project ID
+        # 2. Application Default Credentials
         if self.db is None:
             try:
                 if self.project_id:
@@ -58,7 +57,6 @@ class FirestoreLogger:
                 if self.connection_error is None:
                     self.connection_error = f"ADC initialization failed: {e}"
 
-        # Initialize collection if connection succeeded
         if self.db is not None:
             self.collection = self.db.collection("security_events")
 
@@ -66,28 +64,29 @@ class FirestoreLogger:
     def is_connected(self):
         return self.collection is not None
 
-    def log_event(self, event):
-        """
-        Write a single security event dict to local fallback memory and Firestore (if available).
-        """
-        if not isinstance(event, dict):
+    def log_event(self, event_data):
+        if not isinstance(event_data, dict):
             return None
 
-        event_id = event.get("event_id") or str(uuid.uuid4())
-        event["event_id"] = event_id
+        payload = dict(event_data)
+        if "timestamp" not in payload:
+            payload["timestamp"] = datetime.now(timezone.utc).isoformat()
+        if "event_id" not in payload:
+            payload["event_id"] = str(uuid.uuid4())
 
-        # Always append to local in-memory store so UI updates immediately
-        if not any(e.get("event_id") == event_id for e in LOCAL_EVENT_STORE):
-            LOCAL_EVENT_STORE.append(event)
+        # Save to local session stores unconditionally
+        LOCAL_EVENT_STORE.insert(0, payload)
+        if hasattr(st, "session_state"):
+            if "session_events" not in st.session_state:
+                st.session_state["session_events"] = []
+            st.session_state["session_events"].insert(0, payload)
 
-        # Write to Google Cloud Firestore if connected
+        # Attempt Cloud Firestore Write
         if self.collection is not None:
             try:
-                doc_ref = self.collection.document(event_id)
-                doc_ref.set(event)
-                return doc_ref.id
+                doc_ref = self.collection.add(payload)
+                return doc_ref[1].id
             except Exception as e:
-                print(f"Error logging event to Firestore: {e}")
-                return f"LOCAL_{event_id}"
+                print(f"Firestore log write failed: {e}")
 
-        return f"LOCAL_{event_id}" 
+        return f"LOCAL_{payload['event_id'][:8]}" 
