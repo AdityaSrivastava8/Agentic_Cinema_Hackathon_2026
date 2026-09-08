@@ -4,20 +4,22 @@ import streamlit as st
 from google.cloud import firestore
 from google.oauth2 import service_account
 
+from cloud.firestore_logger import LOCAL_EVENT_STORE
+
 
 class FirestoreReader:
     """
-    Reads Sentinel-A2A security events from Google Cloud
-    Firestore for the monitoring dashboard.
+    Reads Sentinel-A2A security events from Google Cloud Firestore
+    or local in-memory store for the monitoring dashboard.
     """
 
     def __init__(self, project_id=None):
         self.project_id = project_id or os.getenv("GOOGLE_CLOUD_PROJECT")
         self.db = None
         self.collection = None
-        self.connection_error = None  # human-readable reason if connection failed
+        self.connection_error = None
 
-        # 1. First priority: Streamlit secrets
+        # 1. Streamlit secrets priority
         if hasattr(st, "secrets"):
             secret_key = None
             for key in ["textkey", "firestore", "gcp_service_account"]:
@@ -35,82 +37,77 @@ class FirestoreReader:
                     self.db = firestore.Client(credentials=creds, project=self.project_id)
                 except Exception as e:
                     self.connection_error = f"Streamlit secrets init failed: {e}"
-                    print(f"Firestore secret initialization failed: {e}")
-            else:
-                self.connection_error = (
-                    "No matching key found in st.secrets "
-                    "(expected 'textkey', 'firestore', or 'gcp_service_account')"
-                )
 
-        # 2. Second priority: standard GCP Application Default Credentials
+        # 2. GCP Application Default Credentials
         if self.db is None:
             try:
                 if self.project_id:
                     self.db = firestore.Client(project=self.project_id)
                 else:
                     self.db = firestore.Client()
-                self.connection_error = None  # ADC succeeded, clear any earlier note
+                self.connection_error = None
             except Exception as e:
                 if self.connection_error is None:
                     self.connection_error = f"ADC initialization failed: {e}"
-                print(f"GCP default initialization failed: {e}")
 
-        # Initialize collection if connection succeeded
         if self.db is not None:
             self.collection = self.db.collection("security_events")
-        else:
-            print("Firestore is running in unconfigured fallback mode.")
 
     @property
     def is_connected(self):
         return self.collection is not None
 
-    def get_recent_events(self, limit=20):
-        if self.collection is None:
-            return []
-        try:
-            documents = (
-                self.collection
-                .order_by("timestamp", direction=firestore.Query.DESCENDING)
-                .limit(limit)
-                .stream()
-            )
-            events = []
-            for document in documents:
-                event = document.to_dict()
-                event["document_id"] = document.id
-                events.append(event)
-            return events
-        except Exception as e:
-            print(f"Error fetching recent events: {e}")
-            return []
+    def get_recent_events(self, limit=100):
+        if self.collection is not None:
+            try:
+                documents = (
+                    self.collection
+                    .order_by("timestamp", direction=firestore.Query.DESCENDING)
+                    .limit(limit)
+                    .stream()
+                )
+                events = []
+                for document in documents:
+                    event = document.to_dict()
+                    event["document_id"] = document.id
+                    events.append(event)
+                if events:
+                    return events
+            except Exception as e:
+                print(f"Firestore read error: {e}")
 
-    def get_blocked_events(self, limit=20):
-        if self.collection is None:
-            return []
-        try:
-            documents = (
-                self.collection
-                .where("decision", "==", "BLOCK")
-                .limit(limit)
-                .stream()
-            )
-            events = []
-            for document in documents:
-                event = document.to_dict()
-                event["document_id"] = document.id
-                events.append(event)
-            return events
-        except Exception as e:
-            print(f"Error fetching blocked events: {e}")
-            return []
+        # Local fallback
+        return sorted(LOCAL_EVENT_STORE, key=lambda x: x.get("timestamp", ""), reverse=True)[:limit]
+
+    def get_blocked_events(self, limit=100):
+        if self.collection is not None:
+            try:
+                documents = (
+                    self.collection
+                    .where("decision", "==", "BLOCK")
+                    .limit(limit)
+                    .stream()
+                )
+                events = []
+                for document in documents:
+                    event = document.to_dict()
+                    event["document_id"] = document.id
+                    events.append(event)
+                if events:
+                    return events
+            except Exception as e:
+                print(f"Firestore query error: {e}")
+
+        # Local fallback
+        blocked_local = [e for e in LOCAL_EVENT_STORE if e.get("decision") == "BLOCK"]
+        return sorted(blocked_local, key=lambda x: x.get("timestamp", ""), reverse=True)[:limit]
 
     def get_event_count(self):
-        if self.collection is None:
-            return 0
-        try:
-            documents = self.collection.stream()
-            return sum(1 for _ in documents)
-        except Exception as e:
-            print(f"Error getting event count: {e}")
-            return 0 
+        if self.collection is not None:
+            try:
+                documents = self.collection.stream()
+                return sum(1 for _ in documents)
+            except Exception as e:
+                print(f"Firestore count error: {e}")
+
+        return len(LOCAL_EVENT_STORE) 
