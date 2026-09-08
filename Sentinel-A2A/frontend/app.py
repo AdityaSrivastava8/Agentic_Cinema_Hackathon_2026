@@ -31,16 +31,36 @@ st.set_page_config(
 def get_agent_router():
     return AgentRouter()
 
-@st.cache_resource
-def get_firestore_reader():
+# Cache Firestore data fetching with a 2-second TTL for live updates
+@st.cache_data(ttl=2)
+def fetch_firestore_events():
     try:
-        return FirestoreReader()
-    except Exception:
-        return None
+        reader = FirestoreReader()
+        total_count = reader.get_event_count()
+        recent_events = reader.get_recent_events(limit=100)
+        blocked_events = reader.get_blocked_events(limit=100)
+        return {
+            "available": True,
+            "total_count": total_count,
+            "recent_events": recent_events,
+            "blocked_events": blocked_events
+        }
+    except Exception as e:
+        return {
+            "available": False,
+            "error": str(e),
+            "total_count": 0,
+            "recent_events": [],
+            "blocked_events": []
+        }
 
 router = get_agent_router()
-firestore_reader = get_firestore_reader()
-firestore_available = firestore_reader is not None
+fs_data = fetch_firestore_events()
+firestore_available = fs_data["available"]
+
+# Helper to clear cache when a new event occurs
+def refresh_security_data():
+    st.cache_data.clear()
 
 # =========================================================
 # HEADER
@@ -62,22 +82,19 @@ st.divider()
 st.subheader("📊 Security Overview")
 
 if firestore_available:
-    try:
-        total_events = firestore_reader.get_event_count()
-        blocked_events = firestore_reader.get_blocked_events(limit=100)
+    total_events = fs_data["total_count"]
+    blocked_events = fs_data["blocked_events"]
 
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Events Inspected", total_events)
-        with col2:
-            st.metric("Threats Blocked", len(blocked_events))
-        with col3:
-            st.metric("Firewall Status", "🟢 ACTIVE")
-    except Exception:
-        st.warning("Firestore is configured but currently unavailable.")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Events Inspected", total_events)
+    with col2:
+        st.metric("Threats Blocked", len(blocked_events))
+    with col3:
+        st.metric("Firewall Status", "🟢 ACTIVE")
 else:
     st.info(
-        "☁️ Firestore is not configured yet. "
+        "☁️ Firestore is not configured or unavailable. "
         "Security history will become available after Google Cloud configuration."
     )
 
@@ -88,25 +105,25 @@ else:
 st.divider()
 st.subheader("📈 Security Analytics")
 
-if firestore_available:
+if firestore_available and fs_data["recent_events"]:
     try:
-        analytics_events = firestore_reader.get_recent_events(limit=100)
+        analytics_events = fs_data["recent_events"]
         analytics = SecurityAnalytics(analytics_events)
         summary = analytics.summary()
 
         col1, col2, col3, col4, col5 = st.columns(5)
         with col1:
-            st.metric("Total Events", summary["total_events"])
+            st.metric("Total Events", summary.get("total_events", 0))
         with col2:
-            st.metric("🟢 Allowed", summary["allowed"])
+            st.metric("🟢 Allowed", summary.get("allowed", 0))
         with col3:
-            st.metric("🟡 Quarantined", summary["quarantined"])
+            st.metric("🟡 Quarantined", summary.get("quarantined", 0))
         with col4:
-            st.metric("🔴 Blocked", summary["blocked"])
+            st.metric("🔴 Blocked", summary.get("blocked", 0))
         with col5:
-            st.metric("⚠️ High Risk", summary["high_risk"])
+            st.metric("⚠️ High Risk", summary.get("high_risk", 0))
 
-        st.metric("Average Risk Score", summary["average_risk_score"])
+        st.metric("Average Risk Score", summary.get("average_risk_score", 0.0))
 
         # Risk Distribution
         st.subheader("⚠️ Risk Distribution")
@@ -135,7 +152,7 @@ if firestore_available:
     except Exception as error:
         st.warning(f"Unable to generate analytics: {error}")
 else:
-    st.info("📡 Security analytics will appear after Firestore is connected.")
+    st.info("📡 Security analytics will appear after Firestore events are logged.")
 
 # =========================================================
 # ATTACK SIMULATOR
@@ -165,6 +182,8 @@ if scenario:
             tool=scenario["tool"],
             tool_arguments=scenario["arguments"]
         )
+        refresh_security_data()
+        st.rerun()
 
 if "simulation_result" in st.session_state:
     result = st.session_state["simulation_result"]
@@ -243,6 +262,8 @@ if st.button("🛡️ Inspect Request", use_container_width=True):
             tool=tool,
             tool_arguments=tool_arguments
         )
+        refresh_security_data()
+        st.rerun()
 
 if "inspection_result" in st.session_state:
     result = st.session_state["inspection_result"]
@@ -298,35 +319,32 @@ st.divider()
 st.subheader("📜 Security Event History")
 
 if firestore_available:
-    try:
-        events = firestore_reader.get_recent_events(limit=20)
-        if events:
-            for event in events:
-                decision = event.get("decision", "UNKNOWN")
-                icon = "🔴" if decision == "BLOCK" else ("🟡" if decision == "QUARANTINE" else "🟢")
+    events = fs_data["recent_events"]
+    if events:
+        for event in events:
+            decision = event.get("decision", "UNKNOWN")
+            icon = "🔴" if decision == "BLOCK" else ("🟡" if decision == "QUARANTINE" else "🟢")
 
-                with st.expander(
-                    f'{icon} {event.get("source_agent", "Unknown")} → '
-                    f'{event.get("target_agent", "Unknown")} | {decision}'
-                ):
-                    st.write(f'**Event ID:** {event.get("event_id", "N/A")}')
-                    st.write(f'**Timestamp:** {event.get("timestamp", "N/A")}')
-                    st.write(f'**Tool:** {event.get("tool", "None")}')
-                    st.write(f'**Risk Score:** {event.get("risk_score", "N/A")}')
-                    st.write(f'**Risk Level:** {event.get("risk_level", "N/A")}')
-                    st.write(f'**Authorized:** {event.get("authorized", "N/A")}')
+            with st.expander(
+                f'{icon} {event.get("source_agent", "Unknown")} → '
+                f'{event.get("target_agent", "Unknown")} | {decision}'
+            ):
+                st.write(f'**Event ID:** {event.get("event_id", "N/A")}')
+                st.write(f'**Timestamp:** {event.get("timestamp", "N/A")}')
+                st.write(f'**Tool:** {event.get("tool", "None")}')
+                st.write(f'**Risk Score:** {event.get("risk_score", "N/A")}')
+                st.write(f'**Risk Level:** {event.get("risk_level", "N/A")}')
+                st.write(f'**Authorized:** {event.get("authorized", "N/A")}')
 
-                    if event.get("threats"):
-                        st.write("**Threats:**")
-                        for threat in event["threats"]:
-                            st.error(str(threat))
+                if event.get("threats"):
+                    st.write("**Threats:**")
+                    for threat in event["threats"]:
+                        st.error(str(threat))
 
-                    if event.get("gemini_analysis"):
-                        st.write("**Gemini Analysis:**")
-                        st.code(event["gemini_analysis"], language="text")
-        else:
-            st.info("No security events recorded yet.")
-    except Exception as error:
-        st.warning(f"Unable to load security history: {error}")
+                if event.get("gemini_analysis"):
+                    st.write("**Gemini Analysis:**")
+                    st.code(event["gemini_analysis"], language="text")
+    else:
+        st.info("No security events recorded yet.")
 else:
     st.info("📡 Security history will appear here after Firestore is connected.") 
