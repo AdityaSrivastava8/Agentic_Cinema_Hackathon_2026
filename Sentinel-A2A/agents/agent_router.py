@@ -1,3 +1,13 @@
+import os
+import sys
+
+# Ensure Sentinel-A2A root directory is at index 0 of sys.path
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))  # agents/
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))  # Sentinel-A2A/
+
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 import re
 from agents.shopping_agent import ShoppingAgent
 from agents.payment_agent import PaymentAgent
@@ -85,7 +95,7 @@ class AgentRouter:
         for pattern in self.forbidden_patterns:
             if re.search(pattern, combined_text):
                 return True, f"Hard Rule Triggered: Detected pattern '{pattern}'"
-                
+
         return False, None
 
     def _log_to_firestore(self, security_result):
