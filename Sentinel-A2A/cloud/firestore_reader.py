@@ -3,14 +3,12 @@ import os
 import streamlit as st
 from google.cloud import firestore
 from google.oauth2 import service_account
-
 from cloud.firestore_logger import LOCAL_EVENT_STORE
 
 
 class FirestoreReader:
     """
-    Reads Sentinel-A2A security events from Google Cloud Firestore
-    or local in-memory store for the monitoring dashboard.
+    Reads Sentinel-A2A security events from Cloud Firestore or local session memory.
     """
 
     def __init__(self, project_id=None):
@@ -19,7 +17,6 @@ class FirestoreReader:
         self.collection = None
         self.connection_error = None
 
-        # 1. Streamlit secrets priority
         if hasattr(st, "secrets"):
             secret_key = None
             for key in ["textkey", "firestore", "gcp_service_account"]:
@@ -38,7 +35,6 @@ class FirestoreReader:
                 except Exception as e:
                     self.connection_error = f"Streamlit secrets init failed: {e}"
 
-        # 2. GCP Application Default Credentials
         if self.db is None:
             try:
                 if self.project_id:
@@ -57,6 +53,17 @@ class FirestoreReader:
     def is_connected(self):
         return self.collection is not None
 
+    def _get_local_events(self):
+        events = []
+        if hasattr(st, "session_state") and "session_events" in st.session_state:
+            events.extend(st.session_state["session_events"])
+        
+        for e in LOCAL_EVENT_STORE:
+            if e not in events:
+                events.append(e)
+                
+        return sorted(events, key=lambda x: str(x.get("timestamp", "")), reverse=True)
+
     def get_recent_events(self, limit=100):
         if self.collection is not None:
             try:
@@ -74,10 +81,9 @@ class FirestoreReader:
                 if events:
                     return events
             except Exception as e:
-                print(f"Firestore read error: {e}")
+                print(f"Firestore fetch failed: {e}")
 
-        # Local fallback
-        return sorted(LOCAL_EVENT_STORE, key=lambda x: x.get("timestamp", ""), reverse=True)[:limit]
+        return self._get_local_events()[:limit]
 
     def get_blocked_events(self, limit=100):
         if self.collection is not None:
@@ -96,18 +102,19 @@ class FirestoreReader:
                 if events:
                     return events
             except Exception as e:
-                print(f"Firestore query error: {e}")
+                print(f"Firestore blocked fetch failed: {e}")
 
-        # Local fallback
-        blocked_local = [e for e in LOCAL_EVENT_STORE if e.get("decision") == "BLOCK"]
-        return sorted(blocked_local, key=lambda x: x.get("timestamp", ""), reverse=True)[:limit]
+        local_events = self._get_local_events()
+        return [e for e in local_events if e.get("decision") == "BLOCK"][:limit]
 
     def get_event_count(self):
         if self.collection is not None:
             try:
                 documents = self.collection.stream()
-                return sum(1 for _ in documents)
+                count = sum(1 for _ in documents)
+                if count > 0:
+                    return count
             except Exception as e:
                 print(f"Firestore count error: {e}")
 
-        return len(LOCAL_EVENT_STORE) 
+        return len(self._get_local_events()) 
