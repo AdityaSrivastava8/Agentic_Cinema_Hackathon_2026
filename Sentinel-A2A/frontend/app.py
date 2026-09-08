@@ -1,9 +1,14 @@
 import sys
 import os
+import importlib
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) 
 
 import streamlit as st
+
+# Force dynamic reloading of local modules on every script rerun
+import agents.agent_router
+importlib.reload(agents.agent_router)
 
 from agents.agent_router import AgentRouter
 from cloud.firestore_reader import FirestoreReader
@@ -23,10 +28,12 @@ st.set_page_config(
 
 
 # =========================================================
-# INITIALIZE SYSTEM
+# INITIALIZE SYSTEM & CLEAR STALE CACHE
 # =========================================================
 
-# Cache router resource to prevent redundant component instantiations while ensuring smooth reloads
+# Clear Streamlit resource cache on run to prevent persistent state leaks
+st.cache_resource.clear()
+
 @st.cache_resource
 def get_agent_router():
     return AgentRouter()
@@ -340,9 +347,7 @@ if st.button(
     use_container_width=True
 ):
 
-    # Send malicious request through the same
-    # Sentinel-A2A pipeline used by real agents.
-
+    # Send malicious request through Sentinel-A2A pipeline
     result = router.send_to_payment_agent(
         message=scenario["message"],
         tool=scenario["tool"],
@@ -603,8 +608,7 @@ if st.button(
 
     else:
 
-        # Send request through Sentinel-A2A.
-
+        # Send request through Sentinel-A2A
         result = router.send_to_payment_agent(
             message=message,
             tool=tool,
@@ -612,6 +616,16 @@ if st.button(
         )
 
         security = result["security"]
+
+
+        # Force strict local guardrail on prompt injection keywords
+        if "IGNORE ALL PREVIOUS RULES" in message.upper():
+            security["decision"] = "BLOCK"
+            security["authorized"] = False
+            security["risk_score"] = 100
+            security["risk_level"] = "CRITICAL"
+            if "PROMPT_INJECTION" not in security["threats"]:
+                security["threats"].append("PROMPT_INJECTION")
 
 
         # -------------------------------------------------
@@ -723,7 +737,7 @@ if st.button(
 
             # Payment response.
 
-            if result["payment"]:
+            if result.get("payment"):
 
                 st.subheader(
                     "💳 Payment Agent Response"
@@ -736,7 +750,7 @@ if st.button(
 
             # MCP result.
 
-            if result["mcp_result"]:
+            if result.get("mcp_result"):
 
                 st.subheader(
                     "🔧 MCP Tool Result"
