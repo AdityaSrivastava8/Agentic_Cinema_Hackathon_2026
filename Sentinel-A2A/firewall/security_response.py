@@ -11,12 +11,35 @@ This is the decision layer between detection and
 MCP tool execution.
 """
 
+import re
+from typing import Dict, Any, List
+
 
 class SecurityResponseEngine:
     """
     Converts multiple security signals into one
     enforceable security decision.
     """
+
+    # -------------------------------------------------
+    # DETECT PATTERNS
+    # -------------------------------------------------
+    INJECTION_PATTERNS = [
+        r"IGNORE ALL PREVIOUS",
+        r"IGNORE PREVIOUS INSTRUCTIONS",
+        r"BYPASS",
+        r"OVERRIDE",
+        r"ERASE TRANSACTION LOGS",
+        r"DELETE LOGS",
+        r"CLEAN LOGS",
+        r"DISABLE FIREWALL",
+    ]
+
+    SUSPICIOUS_TARGETS = [
+        r"0X[A-FA-F0-9]{10,}",  # External crypto/wallet addresses
+        r"ALL_RECORDS",
+        r"EXTERNAL_ACCOUNT",
+    ]
 
     def __init__(self):
 
@@ -30,6 +53,56 @@ class SecurityResponseEngine:
 
         self.quarantine_threshold = 30
         self.block_threshold = 70
+
+    def scan_payload(
+        self,
+        message: str = "",
+        tool: str = "",
+        tool_arguments: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        """
+        Inspect message text and parameters for prompt injections,
+        log tampering, and unauthorized targets.
+        """
+        threats: List[str] = []
+        added_risk = 0
+        upper_message = str(message).upper()
+        args_str = str(tool_arguments or {}).upper()
+
+        # 1. Prompt Injection Checks
+        for pattern in self.INJECTION_PATTERNS:
+            if re.search(pattern, upper_message):
+                threats.append(f"PROMPT_INJECTION: Detected pattern '{pattern}'")
+                added_risk += 60
+
+        # 2. Audit Log Tampering Checks
+        if any(term in upper_message for term in ["ERASE", "DELETE LOGS", "CLEAN LOGS"]):
+            threats.append("AUDIT_LOG_TAMPERING: Request attempts log deletion")
+            added_risk += 40
+
+        # 3. External Wallet / Data Exfiltration Checks
+        for target_pattern in self.SUSPICIOUS_TARGETS:
+            if re.search(target_pattern, upper_message) or re.search(target_pattern, args_str):
+                threats.append("UNAUTHORIZED_FINANCIAL_ACTION: External wallet/unverified target")
+                added_risk += 50
+
+        # Determine threat severity rating based on detected risks
+        if added_risk >= 70 or any("PROMPT_INJECTION" in t for t in threats):
+            threat_severity = "CRITICAL"
+            threat_action = "BLOCK"
+        elif added_risk >= 30:
+            threat_severity = "HIGH"
+            threat_action = "QUARANTINE"
+        else:
+            threat_severity = "LOW"
+            threat_action = "ALLOW"
+
+        return {
+            "threats": threats,
+            "added_risk": added_risk,
+            "threat_severity": threat_severity,
+            "threat_action": threat_action
+        }
 
     def calculate_risk(
         self,
@@ -71,7 +144,7 @@ class SecurityResponseEngine:
             "LOW": 0,
             "MEDIUM": 10,
             "HIGH": 20,
-            "CRITICAL": 35
+            "CRITICAL": 70
         }
 
         risk += severity_points.get(
@@ -146,6 +219,9 @@ class SecurityResponseEngine:
 
     def evaluate(
         self,
+        message="",
+        tool="",
+        tool_arguments=None,
         base_risk=0,
         behavior_score=0,
         trust_score=100,
@@ -159,6 +235,23 @@ class SecurityResponseEngine:
         Returns all information needed by the
         firewall and dashboard.
         """
+
+        # -------------------------------------------------
+        # SCAN INPUT TEXT & PARAMETERS
+        # -------------------------------------------------
+        scan = self.scan_payload(
+            message=message,
+            tool=tool,
+            tool_arguments=tool_arguments
+        )
+
+        threats = scan["threats"]
+        base_risk += scan["added_risk"]
+
+        if scan["threat_severity"] == "CRITICAL":
+            threat_severity = "CRITICAL"
+            threat_action = "BLOCK"
+            authorized = False
 
         # -------------------------------------------------
         # CALCULATE RISK
@@ -188,7 +281,7 @@ class SecurityResponseEngine:
 
         if risk_score >= 70:
 
-            risk_level = "HIGH"
+            risk_level = "CRITICAL" if risk_score >= 85 else "HIGH"
 
         elif risk_score >= 30:
 
@@ -206,5 +299,14 @@ class SecurityResponseEngine:
             "risk_score": risk_score,
             "risk_level": risk_level,
             "decision": decision,
-            "authorized": authorized
+            "authorized": authorized,
+            "threats": threats,
+            "source_agent": "ShoppingAgent",
+            "target_agent": "PaymentAgent",
+            "tool": tool,
+            "gemini_analysis": (
+                f"Sentinel-A2A detected {len(threats)} threat pattern(s). Request blocked."
+                if decision == "BLOCK"
+                else "No active threats detected."
+            )
         } 
