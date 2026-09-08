@@ -60,15 +60,16 @@ class SentinelA2A:
         ]
 
         # -------------------------------------------------
-        # OPTIONAL FIRESTORE LOGGING
+        # FIRESTORE LOGGING
+        # (mirrors FirestoreReader's own credential resolution order —
+        #  do NOT gate this behind GOOGLE_CLOUD_PROJECT alone, since on
+        #  Streamlit Cloud credentials normally come from st.secrets,
+        #  not an environment variable. FirestoreLogger internally
+        #  falls back to st.secrets if project_id / env var is missing.)
         # -------------------------------------------------
-        project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
-        if project_id:
-            try:
-                self.logger = FirestoreLogger(project_id)
-            except Exception:
-                self.logger = None
-        else:
+        try:
+            self.logger = FirestoreLogger(os.getenv("GOOGLE_CLOUD_PROJECT"))
+        except Exception:
             self.logger = None
 
     def inspect_message(
@@ -240,4 +241,4 @@ class SentinelA2A:
         # -------------------------------------------------
         # STEP 12 — RETURN SECURITY REPORT
         # -------------------------------------------------
-        return security_event
+        return security_event 
