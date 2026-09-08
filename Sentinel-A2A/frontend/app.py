@@ -2,16 +2,15 @@ import os
 import sys
 
 # =========================================================
-# PATH CONFIGURATION (Fixes ModuleNotFoundError on Cloud)
+# ABSOLUTE PATH RESOLUTION (Fixes ModuleNotFoundError)
 # =========================================================
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(CURRENT_DIR)  # Points to Sentinel-A2A
-PARENT_ROOT = os.path.dirname(PROJECT_ROOT)  # Points to repository root
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))  # Sentinel-A2A/frontend
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))  # Sentinel-A2A
 
-# Add both levels to sys.path if not present
-for path in [PROJECT_ROOT, PARENT_ROOT]:
-    if path and path not in sys.path:
-        sys.path.insert(0, path)
+# Ensure Sentinel-A2A directory is at index 0 of sys.path
+if PROJECT_ROOT in sys.path:
+    sys.path.remove(PROJECT_ROOT)
+sys.path.insert(0, PROJECT_ROOT)
 
 import importlib
 import streamlit as st
