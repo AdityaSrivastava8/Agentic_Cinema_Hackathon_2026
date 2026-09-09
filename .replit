@@ -6,7 +6,7 @@ entrypoint = "Sentinel-A2A/frontend/app.py"
 modules = ["python-3.11"]
 
 [nix]
-channel = "stable-23_11"
+channel = "stable-25_05"
 
 [[workflows.workflow]]
 name = "Start application"
@@ -28,4 +28,4 @@ deploymentTarget = "autoscale"
 # Open port 5000 for the Replit deployment
 [[ports]]
 localPort = 5000
-externalPort = 80 
+externalPort = 80
