@@ -32,7 +32,7 @@ Edge Routing & Multi-Region Support: Leverage edge deployment nodes to minimize 
 
 ### Session Management & Cache Control (Clear cache & reload)
 
-![Clear-Cache](screenshots/Screenshot2.png)
+![Clear-Cache](screenshots/s3.png)
 
 Description:
 The dashboard includes a dedicated "Clear cache & reload" control in the sidebar menu. This utility flushes Streamlit's temporary session state memory, resets local telemetry counts, and clears cached Gemini risk evaluation responses to ensure a clean, deterministic testing environment during live security demonstrations.
@@ -44,14 +44,14 @@ Session Diagnostics & Health Monitoring: Pair session resets with automated diag
 
 ### Project Overview & Architecture (About Sentinel-A2A)
 
-![About](screenshots/Screenshot3.png)
+![About](screenshots/s4.png)
 
 Description:
 The About section outlines the core mission and real-world scenario powering Sentinel-A2A. It illustrates an autonomous traffic system where independent AI agents—such as self-driving vehicles—must communicate across intersections. Sentinel-A2A acts as a zero-trust intermediary layer: intercepting inter-agent payloads, enforcing safety and governance policies, evaluating contextual risk, and dynamically adjusting agent trust scores before requests reach physical vehicle-control systems or downstream infrastructure.
 
 ### Support & Developer Contact (Suggestions or Complaints)
 
-![Support-Team](screenshots/Screenshot4.png)
+![Support-Team](screenshots/s5.png)
 
 Description:
 The dashboard incorporates a dedicated contact and support interface providing direct lines of communication for suggestions, issue reports, and feedback. It displays the primary developer contacts:
@@ -65,14 +65,14 @@ In-App Feedback Analytics: Add real-time sentiment analysis and structured feedb
 
 ### Core Identity & Header (Sentinel-A2A: Runtime Security Firewall for AI Agents)
 
-![Header-Tagline](screenshots/Screenshot5.png)
+![Header-Tagline](screenshots/s14.png)
 
 Description:
 The primary landing header establishes Sentinel-A2A's core purpose as a specialized runtime security firewall. It explicitly highlights the platform's focus: continuously monitoring communication between autonomous AI agents and safeguarding Model Context Protocol (MCP) tools from malicious, manipulated, or unauthorized execution requests in real time.
 
 ### Attack Simulator & Threat Vector Selection (Select Attack Scenario)
 
-![Attack-Simulator](screenshots/Screenshot6.png)
+![Attack-Simulator](screenshots/s8.png)
 
 Description:
 The Attack Simulator serves as an interactive sandbox designed to stress-test Sentinel-A2A’s defensive engine against various inter-agent attack vectors. Users can launch both benign baseline transactions and synthetic malicious payloads through a dropdown menu to evaluate how the firewall inspects, scores, and blocks threats in real time.
@@ -92,7 +92,7 @@ Attack Replay & Regression Suite: Export recorded attack sequences into automate
 
 ### Security Telemetry Counters & Database Integration (Security Overview & Analytics)
 
-![Counters-Firestore Status](screenshots/Screenshot7.png)
+![Counters-Firestore Status](screenshots/s6.png)
 
 Description:
 This section displays real-time security metrics, risk telemetry, and persistence status across the Sentinel-A2A platform:
@@ -107,7 +107,7 @@ SIEM Integration & Export: Provide built-in webhook exporters to stream telemetr
 
 ### Interactive Visualizations (Risk Distribution & MCP Tool Activity)
 
-![Interactive Visualizations](screenshots/Screenshot8.png)
+![Interactive Visualizations](screenshots/s7.png)
 
 Description:
 This section provides data visualizations to help operators quickly assess security trends across agent communications:
@@ -121,7 +121,7 @@ Comparative Heatmaps: Add heatmaps mapping agent identity against specific MCP t
 
 ### Real-Time Firewall Verdict & AI Threat Analysis (Sentinel-A2A Response & Gemini Security Intelligence)
 
-![Verdict](screenshots/Screenshot9.png).
+![Verdict](screenshots/s9.png).
 
 Description:
 This module displays the live inspection output generated after evaluating an inter-agent payload through the security engine:
@@ -135,7 +135,7 @@ Explainability & Contextual Auditing: Provide collapsible detailed prompt traces
 
 ### Agent Interception & Parameter Inspection (Inspect Agent Request & Tool Parameters)
 
-![Inspection](screenshots/Screenshot10.png).
+![Inspection](screenshots/s10.png).
 
 Description:
 This panel allows operators to test and inspect inter-agent communications in real time, specifically demonstrating payload exchanges between a ShoppingAgent and a PaymentAgent.
@@ -149,7 +149,7 @@ Multi-Agent Flow Visualization: Expand the two-agent view into a visual DAG (Dir
 
 ### Request Trigger, Analysis & Rule Engine (Inspect Request, Sentinel-A2A Analysis & Detected Threats)
 
-![Verdict](screenshots/Screenshot11.png).
+![Verdict](screenshots/s11.png).
 
 Description:
 This panel details the execution trigger, risk telemetry, and initial rule-based security evaluation when an agent request is inspected:
@@ -164,7 +164,7 @@ Audit Log Export: Allow security analysts to download or stream complete event p
 
 ### Downstream Target Response & Execution Result (Payment Agent Response & MCP Tool Result)
 
-![Response](screenshots/Screenshot12.png).
+![Response](screenshots/s12.png).
 
 Description:
 This panel displays the structured JSON outputs generated after a request successfully clears the Sentinel-A2A firewall and executes on downstream target systems:
@@ -178,7 +178,7 @@ Transaction Rollback & Circuit Breakers: Implement automatic transaction rollbac
 
 ### Audit Trail & Audit Log History (Security Event History)
 
-![History](screenshots/Screenshot13.png).
+![History](screenshots/s13.png).
 
 Description:
 The Security Event History provides an expandable, persistent audit log of all inspected Agent-to-Agent (A2A) interactions. Each record features a collapsible header summarizing the communication path and disposition (e.g., ShoppingAgent → PaymentAgent | ALLOW) and expands to reveal comprehensive transaction metadata:
