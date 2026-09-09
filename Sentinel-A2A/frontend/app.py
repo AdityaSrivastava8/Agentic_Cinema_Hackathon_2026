@@ -420,6 +420,13 @@ def fetch_firestore_data():
         events = list(combined_dict.values())
         events.sort(key=lambda x: str(x.get("timestamp", "")), reverse=True)
 
+    # Keep internal security records intact, but hide unrelated keyboard tools
+    # from the operator-facing dashboard.
+    events = [
+        event for event in events
+        if "keyboard" not in str(event.get("tool", "")).lower()
+    ]
+
     count = len(events)
     blocked = [e for e in events if e.get("decision") == "BLOCK"]
 
