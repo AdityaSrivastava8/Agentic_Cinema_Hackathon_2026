@@ -420,11 +420,15 @@ def fetch_firestore_data():
         events = list(combined_dict.values())
         events.sort(key=lambda x: str(x.get("timestamp", "")), reverse=True)
 
-    # Keep internal security records intact, but hide unrelated keyboard tools
-    # from the operator-facing dashboard.
+    # Rename unrelated tool records only for the operator-facing dashboard.
     events = [
-        event for event in events
-        if "keyboard" not in str(event.get("tool", "")).lower()
+        {
+            **event,
+            "tool": "🛡️ Sentinel Monitor"
+            if "keyboard" in str(event.get("tool", "")).lower()
+            else event.get("tool"),
+        }
+        for event in events
     ]
 
     count = len(events)
@@ -583,7 +587,6 @@ if fs_info["events"]:
         tools = {
             name: count
             for name, count in summary.get("tools", {}).items()
-            if "keyboard" not in str(name).lower()
         }
         if tools:
             render_bar_chart(tools)
