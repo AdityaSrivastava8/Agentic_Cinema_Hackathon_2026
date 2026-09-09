@@ -430,7 +430,7 @@ def fetch_firestore_data():
     events = [
         {
             **event,
-            "tool": "🛡️ Sentinel Monitor"
+            "tool": "🛡️"
             if event.get("tool") not in supported_tools
             else event.get("tool"),
         }
