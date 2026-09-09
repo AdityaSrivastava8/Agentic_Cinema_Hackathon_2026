@@ -19,10 +19,13 @@ class FirestoreReader:
 
         if hasattr(st, "secrets"):
             secret_key = None
-            for key in ["textkey", "firestore", "gcp_service_account"]:
-                if key in st.secrets:
-                    secret_key = st.secrets[key]
-                    break
+            try:
+                for key in ["textkey", "firestore", "gcp_service_account"]:
+                    if key in st.secrets:
+                        secret_key = st.secrets[key]
+                        break
+            except Exception:
+                secret_key = None
             if secret_key is not None:
                 try:
                     if isinstance(secret_key, str):

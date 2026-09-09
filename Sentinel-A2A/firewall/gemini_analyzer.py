@@ -60,8 +60,12 @@ class GeminiAnalyzer:
 
     def _get_secret(self, key: str) -> str:
         """Helper to fetch configuration from Streamlit Secrets or environment variables."""
-        if st and hasattr(st, "secrets") and key in st.secrets:
-            return st.secrets[key]
+        if st and hasattr(st, "secrets"):
+            try:
+                if key in st.secrets:
+                    return st.secrets[key]
+            except Exception:
+                pass
         return os.environ.get(key)
 
     def analyze(
