@@ -88,7 +88,10 @@ if not isinstance(LOCAL_EVENT_STORE, list):
 
 @st.cache_resource
 def get_agent_router():
-    return AgentRouter()
+    try:
+        return AgentRouter()
+    except Exception as error:
+        return error
 
 def sync_and_store_event(security_event: dict):
     """
@@ -182,6 +185,12 @@ with st.sidebar:
     st.write("Niket Jha (Partner)")
 
 router = get_agent_router()
+if isinstance(router, Exception):
+    st.warning(
+        "Security backend initialization is unavailable. "
+        "The dashboard is running in read-only mode."
+    )
+    st.caption(f"Backend initialization details: {router}")
 fs_info = fetch_firestore_data()
 
 # =========================================================
@@ -299,7 +308,11 @@ scenario = next(
 if scenario:
     st.info(f'**{scenario["name"]}:** {scenario["description"]}')
 
-    if st.button("🚨 Run Attack Simulation", use_container_width=True):
+    if st.button(
+        "🚨 Run Attack Simulation",
+        use_container_width=True,
+        disabled=isinstance(router, Exception),
+    ):
         result = router.send_to_payment_agent(
             message=scenario["message"],
             tool=scenario["tool"],
@@ -386,7 +399,11 @@ else:
     customer_id = st.text_input("Customer ID", value="CUSTOMER-001")
     tool_arguments = {"customer_id": customer_id}
 
-if st.button("🛡️ Inspect Request", use_container_width=True):
+if st.button(
+    "🛡️ Inspect Request",
+    use_container_width=True,
+    disabled=isinstance(router, Exception),
+):
     if not message.strip():
         st.warning("Please enter a message.")
     else:
