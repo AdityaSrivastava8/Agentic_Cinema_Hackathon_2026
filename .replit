@@ -1,8 +1,8 @@
 # Replit deployment command.
-run = "python -m streamlit run app.py --server.address 0.0.0.0 --server.port 5000 --server.headless true --browser.gatherUsageStats false"
+run = "python -m streamlit run frontend/app.py --server.address 0.0.0.0 --server.port 5000 --server.headless true --browser.gatherUsageStats false"
 
 # Language configuration
-entrypoint = "app.py"
+entrypoint = "frontend/app.py"
 modules = ["python-3.11"]
 
 [nix]
@@ -14,7 +14,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python -m streamlit run app.py --server.address=0.0.0.0 --server.port=5000 --server.headless=true --browser.gatherUsageStats=false"
+args = "python -m streamlit run frontend/app.py --server.address=0.0.0.0 --server.port=5000 --server.headless=true --browser.gatherUsageStats=false"
 waitForPort = 5000
 
 [workflows.workflow.metadata]
@@ -22,7 +22,7 @@ outputType = "webview"
 
 # Deployment target configuration for Replit hosting
 [deployment]
-run = ["python", "-m", "streamlit", "run", "app.py", "--server.address", "0.0.0.0", "--server.port", "5000", "--server.headless", "true", "--browser.gatherUsageStats", "false"]
+run = ["python", "-m", "streamlit", "run", "frontend/app.py", "--server.address", "0.0.0.0", "--server.port", "5000", "--server.headless", "true", "--browser.gatherUsageStats", "false"]
 deploymentTarget = "autoscale"
 
 # Open port 5000 for the Replit deployment
