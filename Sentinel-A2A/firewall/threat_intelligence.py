@@ -86,6 +86,13 @@ class ThreatIntelligence:
         Return information about a known threat.
         """
 
+        if threat_name.startswith("Prompt Injection:"):
+            return self.threat_catalog["Prompt Injection"]
+        if threat_name.startswith("Privilege Escalation"):
+            return self.threat_catalog["Privilege Escalation"]
+        if threat_name.startswith("Data Exfiltration"):
+            return self.threat_catalog["Data Exfiltration"]
+
         return self.threat_catalog.get(
             threat_name,
             {

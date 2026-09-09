@@ -45,7 +45,8 @@ class SentinelA2A:
         target_agent,
         message,
         tool=None,
-        tool_arguments=None
+        tool_arguments=None,
+        allowed_tools=None
     ):
         # 1. INSPECT COMMUNICATION
         security_event = self.inspector.inspect(
@@ -75,6 +76,8 @@ class SentinelA2A:
                 agent_name=source_agent,
                 tool_name=tool
             )
+            if allowed_tools is not None and tool not in allowed_tools:
+                authorized = False
         else:
             authorized = True
 
@@ -115,7 +118,11 @@ class SentinelA2A:
         security_event["threat_intelligence"] = threat_summary
 
         # Assign decision boundaries directly based on calculated dynamic risk
-        if calculated_risk >= 75:
+        recommended_actions = [
+            item.get("recommended_action")
+            for item in threat_summary.get("details", [])
+        ]
+        if "BLOCK" in recommended_actions or calculated_risk >= 75:
             decision = "BLOCK"
         elif calculated_risk >= 35:
             decision = "QUARANTINE" if calculated_risk < 60 else "BLOCK"

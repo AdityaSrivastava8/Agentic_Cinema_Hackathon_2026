@@ -1,10 +1,25 @@
+### Sentinel-A2A
+
+Sentinel-A2A is a runtime security firewall for AI-agent communication. It inspects agent messages, applies authorization and risk policies, records security events, and blocks unsafe MCP tool execution before downstream actions run.
+
+## Deployment
+
+This repository supports both required public hosting surfaces without changing the application code:
+
+- **Replit:** the Replit workflow runs `Sentinel-A2A/frontend/app.py` on port `5000`. The Replit deployment must be public and use a `replit.app` or `replit.dev` URL.
+- **Streamlit Community Cloud:** configure the main file as `Sentinel-A2A/frontend/app.py`. Streamlit Cloud supplies its own port (`8501`); do not hard-code a port in `.streamlit/config.toml`.
+
+Configure `GEMINI_API_KEY` and any Firestore credentials only through the hosting provider's secret manager. Copy the safe template at `Sentinel-A2A/.streamlit/secrets.toml.example` if needed. Never commit `secrets.toml` or `credentials.toml`.
+
+The local rule-based analyzer and in-memory event store are intentional fallbacks when optional Gemini or Firestore services are unavailable.
+
 ### Made With Replit (Partner Track) 
 
 ![Replit](screenshots/Screenshot1.png)
 
-Replit Cloud Deployment & Hosting Badge 
+Replit Cloud Deployment & Hosting Badge
 Description:
-The application is integrated with Replit's cloud ecosystem, displaying the official "Made with Replit" deployment badge. This confirms the firewall dashboard is hosted on a live container runtime using .replit configuration scripts to expose port 8080 for global web access.
+The application is hosted and deployed through Replit using the checked-in `.replit` workflow and a public Replit deployment URL. Replit is the required hosting platform for the Replit track; Streamlit is the web application framework.
 
 Future Prospects:
 Persistent Reserved Hosting: Transition from temporary deployments to Replit Reserved VM deployment infrastructure to guarantee 100% uptime without auto-sleep limits.
