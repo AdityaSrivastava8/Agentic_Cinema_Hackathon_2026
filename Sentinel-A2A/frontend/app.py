@@ -1,6 +1,8 @@
 import os
 import sys
 
+import altair as alt
+import pandas as pd
 import streamlit as st
 
 # Path configuration
@@ -430,6 +432,29 @@ def fetch_firestore_data():
         "blocked": blocked
     }
 
+def render_horizontal_bar_chart(values):
+    chart_data = pd.DataFrame({
+        "category": list(values.keys()),
+        "count": list(values.values()),
+    })
+    chart = alt.Chart(chart_data).mark_bar(color="#72bdf2").encode(
+        x=alt.X(
+            "category:N",
+            sort="-y",
+            axis=alt.Axis(labelAngle=0, labelColor="#dbe8f2", title=None),
+        ),
+        y=alt.Y(
+            "count:Q",
+            axis=alt.Axis(labelColor="#dbe8f2", title=None, gridColor="#263749"),
+        ),
+    ).properties(height=300).configure_view(
+        stroke="#263749"
+    ).configure_axis(
+        domainColor="#52677d",
+        tickColor="#52677d",
+    )
+    st.altair_chart(chart, use_container_width=True)
+
 with st.sidebar:
     st.markdown(
         """
@@ -542,7 +567,7 @@ if fs_info["events"]:
         st.subheader("⚠️ Risk Distribution")
         risk_levels = summary.get("risk_levels")
         if risk_levels:
-            st.bar_chart(risk_levels)
+            render_horizontal_bar_chart(risk_levels)
         else:
             st.info("No risk data available yet.")
 
@@ -550,7 +575,7 @@ if fs_info["events"]:
         st.subheader("🔧 MCP Tool Activity")
         tools = summary.get("tools")
         if tools:
-            st.bar_chart(tools)
+            render_horizontal_bar_chart(tools)
         else:
             st.info("No MCP tool activity recorded yet.")
 
@@ -558,7 +583,7 @@ if fs_info["events"]:
         st.subheader("🤖 Agent Activity")
         agents = summary.get("agents")
         if agents:
-            st.bar_chart(agents)
+            render_horizontal_bar_chart(agents)
         else:
             st.info("No agent activity recorded yet.")
 
