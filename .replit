@@ -1,4 +1,4 @@
-# Replit deployment command.
+# Replit deployment command
 run = "python -m streamlit run Sentinel-A2A/frontend/app.py --server.address 0.0.0.0 --server.port 5000 --server.headless true --browser.gatherUsageStats false"
 
 # Language configuration
@@ -14,14 +14,14 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python -m pip install -r Sentinel-A2A/requirements.txt --disable-pip-version-check --quiet && exec python -m streamlit run Sentinel-A2A/frontend/app.py --server.address=0.0.0.0 --server.port=5000 --server.headless=true --browser.gatherUsageStats=false"
+args = "python -m streamlit run Sentinel-A2A/frontend/app.py --server.address=0.0.0.0 --server.port=5000 --server.headless=true --browser.gatherUsageStats=false"
 waitForPort = 5000
 
 [workflows.workflow.metadata]
 outputType = "webview"
 
 [deployment]
-run = ["sh", "-c", "python -m pip install -r Sentinel-A2A/requirements.txt --disable-pip-version-check --quiet && exec python -m streamlit run Sentinel-A2A/frontend/app.py --server.address 0.0.0.0 --server.port 5000 --server.headless true --browser.gatherUsageStats false"]
+run = ["sh", "-c", "python -m streamlit run Sentinel-A2A/frontend/app.py --server.address 0.0.0.0 --server.port 5000 --server.headless true --browser.gatherUsageStats false"]
 deploymentTarget = "autoscale"
 
 [[ports]]
