@@ -194,5 +194,8 @@ Automated Compliance Reporting: Generate one-click PDF/CSV exportable compliance
 
 ![Gemini](screenshots/Screenshot15.png). 
 
-### DEPLOYED REPLIT LINK : 
+### DEPLOYED REPLIT LINK (MAIN DEPLOYMENT MEDIUM) : 
 https://agentic-cinema-hackathon-2026--yeahboyadi.replit.app 
+
+### DEPLOYED STREAMLIT LINK (ALTERNATIVE DEPLOYMENT MEDIUM) (TO BE USED AFTER SUSPENSION OF REPLIT LINK) : 
+https://agenticcinemahackathon2026-exzbhlcw3vk4ukfbnmbbud.streamlit.app/
