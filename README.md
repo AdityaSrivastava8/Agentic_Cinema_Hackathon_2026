@@ -24,7 +24,6 @@ Description:
 The application is hosted and deployed through Replit using the checked-in `.replit` workflow and a public Replit deployment URL. Replit is the required hosting platform for the Replit track; Streamlit is the web application framework.
 
 ![Replit](screenshots/Screenshot16.png)
-![Replit](screenshots/Screenshot14.png)
 
 Future Prospects:
 Persistent Reserved Hosting: Transition from temporary deployments to Replit Reserved VM deployment infrastructure to guarantee 100% uptime without auto-sleep limits.
