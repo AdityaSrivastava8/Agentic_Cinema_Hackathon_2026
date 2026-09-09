@@ -1,5 +1,5 @@
 # Replit deployment command.
-run = "streamlit run Sentinel-A2A/frontend/app.py --server.port 8080 --server.address 0.0.0.0"
+run = "streamlit run Sentinel-A2A/frontend/app.py --server.port 5000 --server.address 0.0.0.0"
 
 # Language configuration
 entrypoint = "Sentinel-A2A/frontend/app.py"
@@ -10,10 +10,10 @@ channel = "stable-23_11"
 
 # Deployment target configuration for Replit hosting
 [deployment]
-run = ["sh", "-c", "streamlit run Sentinel-A2A/frontend/app.py --server.port 8080 --server.address 0.0.0.0"]
+run = ["sh", "-c", "streamlit run Sentinel-A2A/frontend/app.py --server.port 5000 --server.address 0.0.0.0"]
 deploymentTarget = "cloudrun"
 
-# Open port 8080 for web dashboard preview
+# Open port 5000 for the Replit deployment
 [[ports]]
-localPort = 8080
-externalPort = 8080
+localPort = 5000
+externalPort = 5000
