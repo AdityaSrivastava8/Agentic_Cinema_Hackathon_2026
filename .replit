@@ -1,8 +1,8 @@
 # Replit deployment command. CLI flags avoid first-run prompts in production.
-run = "python -m streamlit run Sentinel-A2A/frontend/app.py --server.port 5000 --server.address 0.0.0.0 --server.headless true --browser.gatherUsageStats false"
+run = "python -m streamlit run app.py --server.port 5000 --server.address 0.0.0.0 --server.headless true --browser.gatherUsageStats false"
 
 # Language configuration
-entrypoint = "Sentinel-A2A/frontend/app.py"
+entrypoint = "app.py"
 modules = ["python-3.11"]
 
 [nix]
@@ -10,7 +10,7 @@ channel = "stable-23_11"
 
 # Deployment target configuration for Replit hosting
 [deployment]
-run = ["sh", "-c", "python -m streamlit run Sentinel-A2A/frontend/app.py --server.port 5000 --server.address 0.0.0.0 --server.headless true --browser.gatherUsageStats false"]
+run = ["sh", "-c", "python -m streamlit run app.py --server.port 5000 --server.address 0.0.0.0 --server.headless true --browser.gatherUsageStats false"]
 deploymentTarget = "cloudrun"
 
 # Open port 5000 for the Replit deployment
