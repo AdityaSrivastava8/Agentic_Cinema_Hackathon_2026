@@ -20,12 +20,10 @@ waitForPort = 5000
 [workflows.workflow.metadata]
 outputType = "webview"
 
-# Deployment target configuration for Replit hosting
 [deployment]
 run = ["python", "-m", "streamlit", "run", "Sentinel-A2A/frontend/app.py", "--server.address", "0.0.0.0", "--server.port", "5000", "--server.headless", "true", "--browser.gatherUsageStats", "false"]
 deploymentTarget = "autoscale"
 
-# Open port 5000 for the Replit deployment
 [[ports]]
 localPort = 5000
 externalPort = 80 
