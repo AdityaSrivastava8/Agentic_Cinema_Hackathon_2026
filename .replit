@@ -1,5 +1,5 @@
-# Replit deployment command. CLI flags avoid first-run prompts in production.
-run = "python -m streamlit run app.py --server.port 5000 --server.address 0.0.0.0 --server.headless true --browser.gatherUsageStats false"
+# Replit deployment command.
+run = "python -m streamlit run app.py --server.address 0.0.0.0 --server.port 5000 --server.headless true --browser.gatherUsageStats false"
 
 # Language configuration
 entrypoint = "app.py"
@@ -10,7 +10,7 @@ channel = "stable-23_11"
 
 # Deployment target configuration for Replit hosting
 [deployment]
-run = ["sh", "-c", "python -m streamlit run app.py --server.port 5000 --server.address 0.0.0.0 --server.headless true --browser.gatherUsageStats false"]
+run = ["python", "-m", "streamlit", "run", "app.py", "--server.address", "0.0.0.0", "--server.port", "5000", "--server.headless", "true", "--browser.gatherUsageStats", "false"]
 deploymentTarget = "cloudrun"
 
 # Open port 5000 for the Replit deployment
