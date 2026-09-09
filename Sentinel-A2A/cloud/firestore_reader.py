@@ -38,6 +38,25 @@ class FirestoreReader:
                 except Exception as e:
                     self.connection_error = f"Streamlit secrets init failed: {e}"
 
+        # Replit stores multiline credentials more reliably as a JSON secret.
+        if self.db is None:
+            env_secret = next(
+                (os.getenv(key) for key in (
+                    "FIRESTORE_CREDENTIALS_JSON",
+                    "GCP_SERVICE_ACCOUNT_JSON",
+                    "GOOGLE_APPLICATION_CREDENTIALS_JSON",
+                ) if os.getenv(key)),
+                None,
+            )
+            if env_secret:
+                try:
+                    key_dict = json.loads(env_secret)
+                    creds = service_account.Credentials.from_service_account_info(key_dict)
+                    self.project_id = self.project_id or key_dict.get("project_id")
+                    self.db = firestore.Client(credentials=creds, project=self.project_id)
+                except Exception as e:
+                    self.connection_error = f"Environment credentials init failed: {e}"
+
         # Only use Application Default Credentials when explicitly enabled.
         # This keeps hosted startup independent of the GCP metadata server.
         adc_enabled = (

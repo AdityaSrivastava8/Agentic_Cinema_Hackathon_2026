@@ -11,6 +11,8 @@ This repository supports both required public hosting surfaces without changing 
 
 Configure `GEMINI_API_KEY` and any Firestore credentials only through the hosting provider's secret manager. Copy the safe template at `Sentinel-A2A/.streamlit/secrets.toml.example` if needed. Never commit `secrets.toml` or `credentials.toml`.
 
+For Replit, add the complete Google service-account JSON as the secret `FIRESTORE_CREDENTIALS_JSON` and set `FIRESTORE_ENABLED=true`. This enables the Replit deployment to read and write the same persistent Firestore security events as Streamlit. The application still uses local in-memory fallback when these secrets are absent.
+
 The local rule-based analyzer and in-memory event store are intentional fallbacks when optional Gemini or Firestore services are unavailable.
 
 ### Made With Replit (Partner Track) 
