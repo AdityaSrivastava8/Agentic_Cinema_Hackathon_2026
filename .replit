@@ -1,3 +1,4 @@
+```toml
 # Replit deployment command.
 run = "python -m streamlit run Sentinel-A2A/frontend/app.py --server.address 0.0.0.0 --server.port 5000 --server.headless true --browser.gatherUsageStats false"
 
@@ -29,3 +30,4 @@ deploymentTarget = "autoscale"
 [[ports]]
 localPort = 5000
 externalPort = 80
+``` 
