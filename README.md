@@ -125,7 +125,7 @@ Sentinel-A2A Response: Renders immediate policy metrics including a numerical Ri
 Gemini Security Intelligence: Displays deep contextual reasoning powered by the Gemini LLM engine. It provides structured JSON/text key-value diagnostics including THREAT_LEVEL, identified THREAT vectors, underlying security REASON, and an actionable mitigation RECOMMENDATION.
 
 Future Prospects:
-Multi-LLM Security Consensus: Combine evaluation output from multiple models (e.g., Gemini, Claude, and specialized open-source security models) to create a weighted consensus score for high-stake actions.
+Gemini Security Consensus: Combine multiple Gemini security evaluations to create a weighted consensus score for high-stake actions.
 Actionable Mitigation Automation: Integrate auto-remediation triggers that dynamically transform BLOCK or QUARANTINE decisions into system actions like temporary API key revocation or automated security team alerts.
 Explainability & Contextual Auditing: Provide collapsible detailed prompt traces so security auditors can inspect the exact system prompts and contextual parameters passed to Gemini during evaluation.
 
