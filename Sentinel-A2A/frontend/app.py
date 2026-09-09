@@ -432,18 +432,18 @@ def fetch_firestore_data():
         "blocked": blocked
     }
 
-def render_horizontal_bar_chart(values):
+def render_bar_chart(values):
     chart_data = pd.DataFrame({
         "category": list(values.keys()),
         "count": list(values.values()),
     })
     chart = alt.Chart(chart_data).mark_bar(color="#72bdf2").encode(
-        y=alt.Y(
-            "category:N",
-            sort="-x",
-            axis=alt.Axis(labelColor="#dbe8f2", title=None, labelLimit=220),
-        ),
         x=alt.X(
+            "category:N",
+            sort="-y",
+            axis=alt.Axis(labelAngle=0, labelColor="#dbe8f2", title=None, labelLimit=220),
+        ),
+        y=alt.Y(
             "count:Q",
             axis=alt.Axis(labelColor="#dbe8f2", title=None, gridColor="#263749"),
         ),
@@ -567,19 +567,19 @@ if fs_info["events"]:
         st.subheader("⚠️ Risk Distribution")
         risk_levels = summary.get("risk_levels")
         if risk_levels:
-            render_horizontal_bar_chart(risk_levels)
+            render_bar_chart(risk_levels)
         else:
             st.info("No risk data available yet.")
 
         # MCP Tool Activity
-        st.subheader("🔧 MCP Tool Activity")
+        st.subheader("🛡️ MCP Tool Activity")
         tools = {
             name: count
             for name, count in summary.get("tools", {}).items()
             if "keyboard" not in str(name).lower()
         }
         if tools:
-            render_horizontal_bar_chart(tools)
+            render_bar_chart(tools)
         else:
             st.info("No MCP tool activity recorded yet.")
 
@@ -587,7 +587,7 @@ if fs_info["events"]:
         st.subheader("🤖 Agent Activity")
         agents = summary.get("agents")
         if agents:
-            render_horizontal_bar_chart(agents)
+            render_bar_chart(agents)
         else:
             st.info("No agent activity recorded yet.")
 
