@@ -25,47 +25,315 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+        :root {
+            --ink: #f4f7fb;
+            --muted: #9aabbd;
+            --line: #263749;
+            --panel: #111c2a;
+            --canvas: #070b12;
+            --teal: #0e9f9a;
+            --teal-deep: #087873;
+            --amber: #f59e0b;
+        }
+
+        html, body, [class*="css"] {
+            font-family: 'DM Sans', sans-serif;
+            color: var(--ink);
+        }
+
+        .stApp {
+            background:
+                radial-gradient(circle at 90% 0%, rgba(14, 159, 154, 0.08), transparent 28rem),
+                linear-gradient(135deg, #0b111b 0%, var(--canvas) 55%, #0b171b 100%);
+        }
+
+        [data-testid="stHeader"] {
+            background: transparent;
+        }
+
         [data-testid="stSidebar"] {
-            background: linear-gradient(180deg, #f5f5f5 0%, #ececec 100%);
-            border-right: 1px solid rgba(0,0,0,0.08);
+            background: linear-gradient(165deg, #10253c 0%, #122d48 55%, #0d1d31 100%);
+            border-right: 1px solid rgba(255,255,255,0.09);
+        }
+        [data-testid="stSidebar"] > div:first-child {
+            padding: 1.25rem 1rem 1.5rem;
         }
         [data-testid="stSidebar"] * {
-            color: #0f172a !important;
-            font-weight: 800 !important;
+            color: #e7f0f6 !important;
+            font-family: 'DM Sans', sans-serif;
         }
         [data-testid="stSidebar"] h1,
         [data-testid="stSidebar"] h2,
         [data-testid="stSidebar"] h3,
-        [data-testid="stSidebar"] h4,
-        [data-testid="stSidebar"] h5,
-        [data-testid="stSidebar"] h6 {
-            color: #020617 !important;
-            font-weight: 900 !important;
-            letter-spacing: 0.01em;
-        }
-        [data-testid="stSidebar"] p,
-        [data-testid="stSidebar"] div,
-        [data-testid="stSidebar"] label,
-        [data-testid="stSidebar"] .stMarkdownContainer,
-        [data-testid="stSidebar"] .stButton > button {
-            color: #111827 !important;
-            font-weight: 800 !important;
-        }
-        [data-testid="stSidebar"] .stButton > button {
-            background: rgba(15, 23, 42, 0.06);
-            border: 1px solid rgba(15, 23, 42, 0.12);
-            border-radius: 8px;
-            padding: 0.35rem 0.7rem;
-        }
-        [data-testid="stSidebar"] > div:first-child {
-            padding-top: 1rem;
+        [data-testid="stSidebar"] h4 {
+            color: #ffffff !important;
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700 !important;
+            letter-spacing: -0.02em;
         }
         [data-testid="stSidebar"] .stMarkdownContainer {
-            background: rgba(15, 23, 42, 0.04);
+            background: rgba(255,255,255,0.055);
+            border: 1px solid rgba(255,255,255,0.10);
+            border-radius: 12px;
+            padding: 0.7rem 0.8rem;
+            margin-top: 0.55rem;
+        }
+        [data-testid="stSidebar"] .stButton > button {
+            background: rgba(14, 159, 154, 0.16);
+            border: 1px solid rgba(91, 229, 220, 0.35);
+            border-radius: 9px;
+            color: #dffffb !important;
+            font-weight: 700;
+            transition: all 160ms ease;
+        }
+        [data-testid="stSidebar"] .stButton > button:hover {
+            background: rgba(14, 159, 154, 0.30);
+            border-color: #5be5dc;
+            transform: translateY(-1px);
+        }
+        [data-testid="stSidebar"] hr {
+            border-color: rgba(255,255,255,0.12);
+            margin: 1rem 0;
+        }
+
+        .brand-lockup {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 0 1rem;
+        }
+        .brand-mark {
+            display: grid;
+            place-items: center;
+            width: 2.55rem;
+            height: 2.55rem;
             border-radius: 10px;
-            padding: 0.7rem 0.75rem;
-            margin-top: 0.5rem;
-            border: 1px solid rgba(15, 23, 42, 0.08);
+            background: linear-gradient(145deg, #22c6ba, #087873);
+            box-shadow: 0 8px 22px rgba(14, 159, 154, 0.28);
+            font-size: 1.25rem;
+        }
+        .brand-name {
+            color: #ffffff;
+            font: 700 1.12rem 'Space Grotesk', sans-serif;
+            letter-spacing: -0.02em;
+        }
+        .brand-subtitle {
+            color: #8fb0c5;
+            font-size: 0.72rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+        .sidebar-kicker {
+            color: #78e1d9;
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+        .sidebar-copy {
+            color: #b8cbda !important;
+            font-size: 0.82rem;
+            line-height: 1.55;
+        }
+
+        .hero {
+            background: linear-gradient(120deg, #102b46 0%, #16465b 62%, #0e8f88 100%);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 18px;
+            box-shadow: 0 18px 45px rgba(16, 43, 70, 0.16);
+            color: white;
+            margin: 0.75rem 0 1.75rem;
+            padding: 1.6rem 1.75rem;
+        }
+        .hero-kicker {
+            color: #82ebe0;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+        }
+        .hero-title {
+            font: 700 clamp(1.9rem, 4vw, 3.1rem) 'Space Grotesk', sans-serif;
+            letter-spacing: -0.045em;
+            line-height: 1.05;
+            margin: 0.4rem 0 0.55rem;
+        }
+        .hero-copy {
+            color: #c7e1e7;
+            font-size: 0.98rem;
+            max-width: 42rem;
+        }
+
+        h1, h2, h3, h4,
+        [data-testid="stMarkdownContainer"] h1,
+        [data-testid="stMarkdownContainer"] h2,
+        [data-testid="stMarkdownContainer"] h3,
+        [data-testid="stMarkdownContainer"] h4 {
+            font-family: 'Space Grotesk', sans-serif;
+            letter-spacing: -0.025em;
+            color: #f7fbff !important;
+        }
+        h2, h3,
+        [data-testid="stMarkdownContainer"] h2,
+        [data-testid="stMarkdownContainer"] h3 {
+            color: #dcf8f3 !important;
+            text-shadow: 0 0 18px rgba(125, 235, 224, 0.10);
+        }
+        [data-testid="stMetric"] {
+            background: rgba(17, 28, 42, 0.92);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+            padding: 0.9rem 1rem;
+        }
+        [data-testid="stMetricLabel"] {
+            color: var(--muted) !important;
+            font-weight: 600;
+        }
+        [data-testid="stMetricValue"] {
+            color: var(--ink) !important;
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        [data-testid="stWidgetLabel"] p,
+        [data-testid="stWidgetLabel"] label,
+        [data-testid="stMarkdownContainer"] p,
+        [data-testid="stCaptionContainer"] p {
+            color: #dbe8f2 !important;
+        }
+        .stButton > button {
+            background: #1261a0 !important;
+            border: 1px solid #3388cc !important;
+            border-radius: 9px;
+            color: #ffffff !important;
+            font-weight: 700;
+            transition: all 160ms ease;
+        }
+        .stButton > button:hover {
+            background: #1877c2 !important;
+            border-color: #65b5f0 !important;
+            color: #ffffff !important;
+            transform: translateY(-1px);
+        }
+        .stButton > button p,
+        [data-testid="stNumberInput"] button,
+        [data-testid="stNumberInput"] button svg {
+            color: #ffffff !important;
+        }
+        [data-testid="stNumberInput"] button {
+            background: #1261a0 !important;
+            border-color: #3388cc !important;
+        }
+        [data-testid="stNumberInput"] button:hover {
+            background: #1877c2 !important;
+        }
+        [data-testid="stNumberInput"] > div,
+        [data-testid="stTextInput"] > div,
+        [data-testid="stTextArea"] > div,
+        [data-testid="stSelectbox"] [data-baseweb="select"],
+        [data-baseweb="select"] > div {
+            background: #1261a0 !important;
+            border-color: #3388cc !important;
+        }
+        [data-testid="stNumberInput"] input,
+        [data-testid="stTextInput"] input,
+        [data-testid="stTextArea"] textarea {
+            background: #101a27 !important;
+            color: #ffffff !important;
+        }
+        [data-testid="stSelectbox"] [data-baseweb="select"] span,
+        [data-testid="stSelectbox"] [data-baseweb="select"] svg {
+            color: #ffffff !important;
+            fill: #ffffff !important;
+        }
+        .stTextInput input, .stTextArea textarea, .stSelectbox [data-baseweb="select"],
+        .stNumberInput input {
+            border-radius: 9px;
+            border-color: var(--line);
+            background: #101a27;
+            color: var(--ink);
+        }
+        .stSelectbox [data-baseweb="select"] * {
+            color: #f4f7fb !important;
+        }
+        [data-baseweb="popover"],
+        [data-baseweb="menu"],
+        [role="listbox"] {
+            background: #1261a0 !important;
+            border: 1px solid #3388cc !important;
+            border-radius: 9px !important;
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35) !important;
+        }
+        [role="option"] {
+            background: #1261a0 !important;
+            color: #ffffff !important;
+        }
+        [role="option"]:hover,
+        [role="option"][aria-selected="true"] {
+            background: #1877c2 !important;
+            color: #ffffff !important;
+        }
+        [data-testid="stAlert"],
+        [data-testid="stExpander"],
+        [data-testid="stDataFrame"],
+        [data-testid="stVegaLiteChart"],
+        [data-testid="stArrowVegaLiteChart"] {
+            background: #111c2a !important;
+            border: 1px solid #263749 !important;
+            border-radius: 10px;
+        }
+        [data-testid="stAlert"] p,
+        [data-testid="stExpander"] p,
+        [data-testid="stExpander"] summary,
+        [data-testid="stVegaLiteChart"] text,
+        [data-testid="stArrowVegaLiteChart"] text {
+            color: #ffffff !important;
+        }
+        [data-testid="stCodeBlock"],
+        [data-testid="stCodeBlock"] pre,
+        [data-testid="stCodeBlock"] code,
+        pre, code {
+            background: #102b46 !important;
+            color: #ffffff !important;
+            border: 1px solid #3388cc !important;
+            border-radius: 9px !important;
+        }
+        [data-testid="stJson"],
+        [data-testid="stJson"] pre,
+        [data-testid="stJson"] code,
+        .stJson,
+        .stJson pre {
+            background: #102b46 !important;
+            color: #ffffff !important;
+            border: 1px solid #3388cc !important;
+            border-radius: 9px !important;
+        }
+        [data-testid="stJson"] span,
+        .stJson span {
+            color: #ffffff !important;
+        }
+        [data-testid="stJson"] *,
+        .stJson *,
+        [class*="react-json-view"] * {
+            background-color: #102b46 !important;
+            color: #ffffff !important;
+        }
+        [data-testid="stJson"] button,
+        .stJson button,
+        [class*="react-json-view"] button {
+            background: #1261a0 !important;
+            color: #ffffff !important;
+            border: 0 !important;
+        }
+        [data-testid="stVegaLiteChart"] svg,
+        [data-testid="stArrowVegaLiteChart"] svg {
+            background: #111c2a !important;
+        }
+        .block-container {
+            max-width: 1220px;
+            padding-top: 2.2rem;
+            padding-bottom: 4rem;
         }
     </style>
     """,
@@ -163,7 +431,19 @@ def fetch_firestore_data():
     }
 
 with st.sidebar:
-    st.subheader("Menu")
+    st.markdown(
+        """
+        <div class="brand-lockup">
+            <div class="brand-mark">🛡</div>
+            <div>
+                <div class="brand-name">Sentinel-A2A</div>
+                <div class="brand-subtitle">Agent security console</div>
+            </div>
+        </div>
+        <div class="sidebar-kicker">Control center</div>
+        """,
+        unsafe_allow_html=True,
+    )
     if st.button("🔄 Clear cache & reload"):
         st.cache_resource.clear()
         st.cache_data.clear()
@@ -172,7 +452,7 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    st.markdown("### About")
+    st.markdown("### About Sentinel")
     st.write(
         "Imagine two self-driving cars, each controlled by its own independent AI agent, approaching the same intersection. The two AI agents communicate with each other to coordinate their movements, but their communication is routed through Sentinel-A2A, which acts as an independent security and governance layer. Sentinel analyzes their interactions, verifies authorization and security policies, detects malicious, abnormal, or conflicting behavior, evaluates the risk of each request, and monitors the agents’ behavioral trust. For example, if Car A incorrectly interprets Car B’s position and sends an unsafe instruction to proceed through the intersection, Sentinel can identify the interaction as high-risk and block or quarantine the request before it reaches the other agent or vehicle-control system. Similarly, if an agent repeatedly generates suspicious requests, Sentinel can identify the behavioral anomaly and reduce its trust score. Through this process, Sentinel-A2A acts as a digital traffic controller and security checkpoint for communication between autonomous AI agents, helping prevent unsafe AI decisions from affecting the physical world.\n\nRemember the famous Facebook AI experiment where two bots, Bob and Alice, started talking to each other in their own shorthand language? While headlines hyped it up as robots taking over, it revealed a real, dangerous vulnerability: when autonomous AI agents communicate machine-to-machine, humans instantly lose visibility. That’s exactly where Sentinel-A2A comes in. It acts as an unbypassable, zero-trust security firewall sitting right between those agents. Whether an agent tries to override system instructions, pass illegal parameters, or escalate its own privileges, Sentinel-A2A intercepts every payload in real time — calculating dynamic risk scores and blocking unauthorized actions before they ever touch underlying systems.\n\nSentinel-A2A addresses the single biggest security blind spot in agentic AI: traditional firewalls protect web traffic, and traditional LLM guardrails protect user prompts, but neither safeguards machine-to-machine Agent-to-Agent (A2A) communication or MCP tool execution. Sentinel-A2A is among the world’s first dedicated runtime firewalls specifically engineered for this layer — stopping indirect prompt injection and unauthorized financial execution before they touch real systems.\n\nLooking ahead, Sentinel-A2A could evolve into a broader AI safety infrastructure for autonomous vehicles and other intelligent machines. In the event of a serious accident, it could integrate with authorized emergency-response systems to automatically share verified incident information—such as location, severity, and vehicles involved—with ambulance and emergency services. Similarly, repeated or critical violations could be reported through authorized integrations with transport and government authorities, enabling regulatory monitoring and response. These capabilities could eventually extend beyond vehicles to robots, drones, industrial machines, smart-city infrastructure, and other systems where independent AI agents need to interact safely.\n\nJust as roads need traffic rules and vehicles need safety systems, a world of autonomous AI agents needs a trusted layer that governs how those agents interact. Sentinel-A2A is our vision for that layer."
     )
@@ -197,12 +477,18 @@ fs_info = fetch_firestore_data()
 # HEADER
 # =========================================================
 
-st.title("🛡️ Sentinel-A2A")
-st.subheader("Runtime Security Firewall for AI Agents")
-st.write(
-    "Sentinel-A2A monitors communication between AI agents "
-    "and protects MCP tools from malicious, manipulated, "
-    "or unauthorized requests."
+st.markdown(
+    """
+    <section class="hero">
+        <div class="hero-kicker">Runtime defense layer · Live posture</div>
+        <div class="hero-title">Sentinel-A2A</div>
+        <div class="hero-copy">
+            Runtime security for agent-to-agent communication. Inspect every request,
+            enforce MCP policy, and stop unsafe actions before they reach downstream tools.
+        </div>
+    </section>
+    """,
+    unsafe_allow_html=True,
 )
 
 # =========================================================
