@@ -28,4 +28,4 @@ deploymentTarget = "autoscale"
 # Open port 5000 for the Replit deployment
 [[ports]]
 localPort = 5000
-externalPort = 80
+externalPort = 80 
