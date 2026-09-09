@@ -1,6 +1,6 @@
 ### Made With Replit (Partner Track) 
 
-![Replit](screenshots/Screenshot (1).png)
+![Replit](screenshots/Screenshot1.png)
 
 Replit Cloud Deployment & Hosting Badge 
 Description:
