@@ -21,6 +21,9 @@ Replit Cloud Deployment & Hosting Badge
 Description:
 The application is hosted and deployed through Replit using the checked-in `.replit` workflow and a public Replit deployment URL. Replit is the required hosting platform for the Replit track; Streamlit is the web application framework.
 
+![Replit](screenshots/Screenshot16.png)
+![Replit](screenshots/Screenshot14.png)
+
 Future Prospects:
 Persistent Reserved Hosting: Transition from temporary deployments to Replit Reserved VM deployment infrastructure to guarantee 100% uptime without auto-sleep limits.
 Custom Domain & SSL Mapping: Attach a custom domain (e.g., firewall.sentinel-a2a.org) with SSL termination via Replit Domains for enterprise trust.
@@ -186,3 +189,8 @@ Future Prospects:
 Tamper-Evident Audit Ledger: Cryptographically sign each event entry using hash-chaining or store event hashes on an immutable ledger to prevent retroactive log modification.
 Full-Text & Faceted Search: Add advanced search filters allowing compliance officers to query historical events by agent ID, tool name, risk range, or keyword across Gemini analysis outputs.
 Automated Compliance Reporting: Generate one-click PDF/CSV exportable compliance reports mapped to enterprise security standards (such as SOC2, ISO 27001, or NIST AI Risk Management Framework).
+
+### Google Gemini 
+
+![Gemini](screenshots/Screenshot15.png). 
+
