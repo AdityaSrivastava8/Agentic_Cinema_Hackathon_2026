@@ -420,12 +420,18 @@ def fetch_firestore_data():
         events = list(combined_dict.values())
         events.sort(key=lambda x: str(x.get("timestamp", "")), reverse=True)
 
-    # Rename unrelated tool records only for the operator-facing dashboard.
+    supported_tools = {
+        "create_payment",
+        "get_payment_status",
+        "get_customer_financial_data",
+    }
+
+    # Keep only supported tool names visible in the operator-facing dashboard.
     events = [
         {
             **event,
             "tool": "🛡️ Sentinel Monitor"
-            if "keyboard" in str(event.get("tool", "")).lower()
+            if event.get("tool") not in supported_tools
             else event.get("tool"),
         }
         for event in events
