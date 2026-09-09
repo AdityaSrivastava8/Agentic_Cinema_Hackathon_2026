@@ -38,7 +38,13 @@ class FirestoreReader:
                 except Exception as e:
                     self.connection_error = f"Streamlit secrets init failed: {e}"
 
-        if self.db is None:
+        # Only use Application Default Credentials when explicitly enabled.
+        # This keeps hosted startup independent of the GCP metadata server.
+        adc_enabled = (
+            os.getenv("FIRESTORE_ENABLED", "").lower() == "true"
+            or bool(os.getenv("GOOGLE_APPLICATION_CREDENTIALS"))
+        )
+        if self.db is None and adc_enabled:
             try:
                 if self.project_id:
                     self.db = firestore.Client(project=self.project_id)

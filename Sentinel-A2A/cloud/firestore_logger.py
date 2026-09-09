@@ -48,8 +48,13 @@ class FirestoreLogger:
                 except Exception as e:
                     self.connection_error = f"Streamlit secrets init failed: {e}"
 
-        # 2. Application Default Credentials
-        if self.db is None:
+        # 2. Application Default Credentials, only when explicitly enabled.
+        # Avoid metadata-server calls during startup on hosting platforms.
+        adc_enabled = (
+            os.getenv("FIRESTORE_ENABLED", "").lower() == "true"
+            or bool(os.getenv("GOOGLE_APPLICATION_CREDENTIALS"))
+        )
+        if self.db is None and adc_enabled:
             try:
                 if self.project_id:
                     self.db = firestore.Client(project=self.project_id)
