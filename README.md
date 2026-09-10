@@ -92,13 +92,14 @@ Attack Replay & Regression Suite: Export recorded attack sequences into automate
 
 ### Security Telemetry Counters & Database Integration (Security Overview & Analytics)
 
-![Counters-Firestore Status](screenshots/s6.png)
+![Counters-Firestore Status](screenshots/s.png)
 
 Description:
 This section displays real-time security metrics, risk telemetry, and persistence status across the Sentinel-A2A platform:
 Security Overview: Tracks core key performance indicators including Events Inspected and Threats Blocked.
 Firestore Connection Status: Displays live connection state (LOCAL FALLBACK), alerting operators that the firewall is executing in local in-memory state mode when Google Cloud Firestore credentials are not explicitly attached.
 Security Analytics: Breaks down inspected traffic across distinct disposition buckets (Total Events, Allowed, Quarantined, Blocked, and High Risk), accompanied by a rolling Average Risk Score metric.
+Reload/Reboot the app to connect Firestore Service. 
 
 Future Prospects:
 Seamless Firestore Sync: Enable auto-discovery of GCP credentials to seamlessly transition from Local Fallback mode to persistent Cloud Firestore sync without downtime.
