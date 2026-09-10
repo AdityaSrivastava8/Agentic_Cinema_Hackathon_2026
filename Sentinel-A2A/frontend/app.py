@@ -399,7 +399,7 @@ def fetch_firestore_data():
         reader = FirestoreReader()
         if getattr(reader, "db", None):
             recent_events = reader.get_recent_events(limit=100) or []
-            #if recent_events:
+            if recent_events:
                 events = recent_events
                 available = True
     except Exception:
