@@ -40,10 +40,10 @@ st.markdown(
             --amber: #f59e0b;
         }
 
-        html, body, .stApp {
+        html, body, [class*="css"] {
     font-family: 'DM Sans', sans-serif;
     color: var(--ink);
-} 
+}
 
         .stApp {
             background:
