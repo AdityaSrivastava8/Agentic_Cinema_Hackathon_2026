@@ -66,6 +66,7 @@ class FirestoreLogger:
                     self.db = firestore.Client(credentials=creds, project=self.project_id)
                 except Exception as e:
                     self.connection_error = f"Environment credentials init failed: {e}"
+       print(self.connection_error)
 
         # 2. Application Default Credentials, only when explicitly enabled.
         # Avoid metadata-server calls during startup on hosting platforms.
