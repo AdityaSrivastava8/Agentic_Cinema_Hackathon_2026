@@ -56,6 +56,7 @@ class FirestoreReader:
                     self.db = firestore.Client(credentials=creds, project=self.project_id)
                 except Exception as e:
                     self.connection_error = f"Environment credentials init failed: {e}"
+        print(self.connection_error)
 
         # Only use Application Default Credentials when explicitly enabled.
         # This keeps hosted startup independent of the GCP metadata server.
